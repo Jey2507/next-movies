@@ -17,7 +17,6 @@ const STATUSES = [
   { id: 'planned', label: 'Plan to watch', color: 'var(--gold)' },
   { id: 'watching', label: 'In process', color: 'var(--teal)' },
   { id: 'done', label: 'Done', color: 'var(--green)' },
-  { id: 'dropped', label: 'Not watching', color: 'var(--crimson)' },
 ]
 
 const GENRE_NAMES = {
