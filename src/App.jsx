@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
 import { supabase, isSupabaseConfigured } from './supabaseClient'
+import DetailModal from './components/DetailModal'
+import ConfirmDeleteModal from './components/ConfirmDeleteModal'
 
 // Get a free key at https://www.themoviedb.org/settings/api and paste it below.
 const TMDB_API_KEY = '4f5ec21ec83179db03e267a97d8f594d'
@@ -27,15 +29,35 @@ const GENRE_NAMES = {
 }
 
 const SEED = [
-  { id: 1, title: 'Dune: Part Three', type: 'movie', year: '2026', genre: 'Sci-fi', status: 'planned', poster: null },
-  { id: 2, title: 'Severance', type: 'series', year: '2025', genre: 'Mystery', status: 'watching', poster: null },
-  { id: 3, title: 'Frieren', type: 'anime', year: '2023', genre: 'Fantasy', status: 'done', poster: null },
+  { id: 1, title: 'Dune: Part Three', type: 'movie', year: '2026', genre: 'Sci-fi', status: 'planned', poster: null, position: 1 },
+  { id: 2, title: 'Severance', type: 'series', year: '2025', genre: 'Mystery', status: 'watching', poster: null, position: 2 },
+  { id: 3, title: 'Frieren', type: 'anime', year: '2023', genre: 'Fantasy', status: 'done', poster: null, position: 3 },
 ]
+
+// Re-stamps every item's "position" as a clean 1..N sequence, in the order
+// items already sort into (missing/duplicate positions fall back to their
+// current array order instead of colliding). Returns { list, changed } so
+// callers can skip a write-back when nothing needed fixing.
+function normalizePositions(list) {
+  const withIndex = list.map((item, index) => ({ item, index }))
+  withIndex.sort((x, y) => {
+    const px = typeof x.item.position === 'number' ? x.item.position : Infinity
+    const py = typeof y.item.position === 'number' ? y.item.position : Infinity
+    return px - py || x.index - y.index
+  })
+  let changed = false
+  const result = withIndex.map(({ item }, idx) => {
+    const position = idx + 1
+    if (item.position !== position) changed = true
+    return item.position === position ? item : { ...item, position }
+  })
+  return { list: result, changed }
+}
 
 function loadLocal() {
   try {
     const raw = localStorage.getItem(LOCAL_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) return normalizePositions(JSON.parse(raw)).list
   // eslint-disable-next-line no-unused-vars
   } catch (e) {
     // ignore corrupted storage
@@ -74,6 +96,7 @@ export default function App() {
   const [loading, setLoading] = useState(isSupabaseConfigured)
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [genreFilter, setGenreFilter] = useState('all')
 
   const [title, setTitle] = useState('')
   const [type, setType] = useState('movie')
@@ -86,6 +109,10 @@ export default function App() {
   const [searchError, setSearchError] = useState('')
   const [showResults, setShowResults] = useState(false)
   const boxRef = useRef(null)
+  const ticketRefs = useRef(new Map())
+  const prevRectsRef = useRef(null)
+  const [activeItem, setActiveItem] = useState(null)
+  const [pendingDelete, setPendingDelete] = useState(null)
 
   // Load from Supabase on mount (falls back to localStorage if not configured)
   useEffect(() => {
@@ -95,9 +122,17 @@ export default function App() {
       const { data, error } = await supabase
         .from('items')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('position', { ascending: true })
       if (!cancelled) {
-        if (!error && data) setItems(data)
+        if (!error && data) {
+          const { list, changed } = normalizePositions(data)
+          setItems(list)
+          if (changed) {
+            for (const item of list) {
+              await supabase.from('items').update({ position: item.position }).eq('id', item.id)
+            }
+          }
+        }
         setLoading(false)
       }
     }
@@ -153,11 +188,13 @@ export default function App() {
   }, [])
 
   async function addItem(entry) {
+    const position = items.length ? Math.max(...items.map((i) => i.position || 0)) + 1 : 1
+    const withPosition = { ...entry, position }
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('items').insert(entry).select().single()
-      if (!error && data) setItems((prev) => [data, ...prev])
+      const { data, error } = await supabase.from('items').insert(withPosition).select().single()
+      if (!error && data) setItems((prev) => [...prev, data])
     } else {
-      setItems((prev) => [{ ...entry, id: Date.now() }, ...prev])
+      setItems((prev) => [...prev, { ...withPosition, id: Date.now() }])
     }
   }
 
@@ -203,11 +240,78 @@ export default function App() {
     if (isSupabaseConfigured) await supabase.from('items').update({ status }).eq('id', id)
   }
 
-  const visible = items.filter(
-    (i) =>
-      (typeFilter === 'all' || i.type === typeFilter) &&
-      (statusFilter === 'all' || i.status === statusFilter)
-  )
+  function captureRects() {
+    const map = new Map()
+    ticketRefs.current.forEach((el, itemId) => {
+      if (el) map.set(itemId, el.getBoundingClientRect())
+    })
+    prevRectsRef.current = map
+  }
+
+  async function moveItem(id, direction) {
+    const idx = visible.findIndex((i) => i.id === id)
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (idx === -1 || targetIdx < 0 || targetIdx >= visible.length) return
+    const a = visible[idx]
+    const b = visible[targetIdx]
+    captureRects()
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id === a.id) return { ...i, position: b.position }
+        if (i.id === b.id) return { ...i, position: a.position }
+        return i
+      })
+    )
+    if (isSupabaseConfigured) {
+      await supabase.from('items').update({ position: b.position }).eq('id', a.id)
+      await supabase.from('items').update({ position: a.position }).eq('id', b.id)
+    }
+  }
+
+  const genres = Array.from(new Set(items.map((i) => i.genre).filter(Boolean))).sort()
+
+  const visible = items
+    .filter(
+      (i) =>
+        (typeFilter === 'all' || i.type === typeFilter) &&
+        (statusFilter === 'all' || i.status === statusFilter) &&
+        (genreFilter === 'all' || i.genre === genreFilter)
+    )
+    .sort((a, b) => (a.position || 0) - (b.position || 0))
+
+  const orderKey = visible.map((i) => i.id).join(',')
+
+  // FLIP animation: whenever the visible order changes because of a move,
+  // animate every ticket from its previous screen position to its new one.
+  useLayoutEffect(() => {
+    const prevRects = prevRectsRef.current
+    if (!prevRects) return
+    prevRectsRef.current = null
+    ticketRefs.current.forEach((el, itemId) => {
+      const prevRect = prevRects.get(itemId)
+      if (!el || !prevRect) return
+      const newRect = el.getBoundingClientRect()
+      const dx = prevRect.left - newRect.left
+      const dy = prevRect.top - newRect.top
+      if (!dx && !dy) return
+      el.style.transition = 'none'
+      el.style.transform = `translate(${dx}px, ${dy}px)`
+      el.style.zIndex = '5'
+      // force reflow so the starting transform is applied before we animate away from it
+      el.getBoundingClientRect()
+      requestAnimationFrame(() => {
+        el.style.transition = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)'
+        el.style.transform = ''
+      })
+      const onDone = (e) => {
+        if (e.target !== el) return
+        el.style.transition = ''
+        el.style.zIndex = ''
+        el.removeEventListener('transitionend', onDone)
+      }
+      el.addEventListener('transitionend', onDone)
+    })
+  }, [orderKey])
 
   return (
     <div className="queue-app">
@@ -322,6 +426,18 @@ export default function App() {
             {s.label} · {items.filter((i) => i.status === s.id).length}
           </button>
         ))}
+        {genres.length > 0 && (
+          <select
+            className="genre-filter-select"
+            value={genreFilter}
+            onChange={(e) => setGenreFilter(e.target.value)}
+          >
+            <option value="all">All genres</option>
+            {genres.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {loading ? (
@@ -336,7 +452,24 @@ export default function App() {
       ) : (
         <div className="ticket-grid">
           {visible.map((item) => (
-            <article className={'ticket ticket--' + item.type} key={item.id}>
+            <article
+              className={'ticket ticket--' + item.type}
+              key={item.id}
+              ref={(el) => {
+                if (el) ticketRefs.current.set(item.id, el)
+                else ticketRefs.current.delete(item.id)
+              }}
+              onClick={() => setActiveItem(item)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setActiveItem(item)
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`View details for ${item.title}`}
+            >
               <div className="ticket-stub">
                 <span className="ticket-stub-code">{initials(item.type)}</span>
                 <span className="ticket-stub-admit">ADMIT ONE</span>
@@ -352,7 +485,33 @@ export default function App() {
                 <div className="ticket-content">
                   <div className="ticket-body-top">
                     <span className="ticket-type">{TYPES.find((t) => t.id === item.type)?.label}</span>
-                    <button className="ticket-remove" onClick={() => removeItem(item.id)} aria-label={`Remove ${item.title}`}>
+                    <div className="ticket-order">
+                      <button
+                        className="ticket-order-btn ticket-order-btn--up"
+                        onClick={(e) => { e.stopPropagation(); moveItem(item.id, 'up') }}
+                        disabled={visible.findIndex((i) => i.id === item.id) === 0}
+                        aria-label={`Move ${item.title} up`}
+                      >
+                        <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+                          <path d="M2 7.5L6 3.5L10 7.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                      <button
+                        className="ticket-order-btn ticket-order-btn--down"
+                        onClick={(e) => { e.stopPropagation(); moveItem(item.id, 'down') }}
+                        disabled={visible.findIndex((i) => i.id === item.id) === visible.length - 1}
+                        aria-label={`Move ${item.title} down`}
+                      >
+                        <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+                          <path d="M2 4.5L6 8.5L10 4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </div>
+                    <button
+                      className="ticket-remove"
+                      onClick={(e) => { e.stopPropagation(); setPendingDelete(item) }}
+                      aria-label={`Remove ${item.title}`}
+                    >
                       ×
                     </button>
                   </div>
@@ -365,6 +524,7 @@ export default function App() {
                   <select
                     className={'status-select status-select--' + item.status}
                     value={item.status}
+                    onClick={(e) => e.stopPropagation()}
                     onChange={(e) => changeStatus(item.id, e.target.value)}
                   >
                     {STATUSES.map((s) => (
@@ -377,6 +537,22 @@ export default function App() {
           ))}
         </div>
       )}
+
+      <DetailModal
+        item={activeItem}
+        onClose={() => setActiveItem(null)}
+        apiKey={TMDB_API_KEY}
+        imgBase={TMDB_IMG}
+      />
+
+      <ConfirmDeleteModal
+        item={pendingDelete}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          removeItem(pendingDelete.id)
+          setPendingDelete(null)
+        }}
+      />
     </div>
   )
 }

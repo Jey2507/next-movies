@@ -1,0 +1,248 @@
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 8, 13, 0.72);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+  animation: modal-backdrop-in 160ms ease;
+}
+
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 24px;
+  animation: modal-card-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes modal-card-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-card--movie { border-top: 3px solid var(--gold); }
+.modal-card--series { border-top: 3px solid var(--teal); }
+.modal-card--anime { border-top: 3px solid var(--crimson); }
+
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.modal-close:hover { color: var(--text); border-color: var(--gold); }
+
+.modal-hero {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-right: 28px;
+}
+
+/* Reserves the poster's layout space regardless of the image's own
+   positioning, so switching the image to position: fixed for the zoom
+   animation never reflows the surrounding title/meta info. */
+.modal-poster-slot {
+  position: relative;
+  width: 96px;
+  height: 140px;
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+
+.modal-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--line);
+  cursor: zoom-in;
+  /* No transition here by default: while idle, the image must snap back into
+     its slot instantly. Animating it is handled entirely via an inline
+     `transition` set only for the 'open'/'closing' phases (see
+     DetailModal.jsx) — otherwise this rule would still be "on" for the final
+     position:fixed -> in-flow reset and try to animate the leftover
+     translate() value into the new (in-flow) coordinate space, producing a
+     visible jerk. */
+  transition: none;
+}
+
+.modal-poster--empty {
+  background: linear-gradient(160deg, var(--surface-raised), var(--line));
+}
+
+.modal-poster--zoomed {
+  z-index: 20;
+  cursor: zoom-out;
+}
+
+.modal-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgba(4, 5, 8, 0);
+  pointer-events: none;
+  transition: background 380ms ease;
+}
+
+.modal-zoom-overlay--active {
+  background: rgba(4, 5, 8, 0.82);
+  pointer-events: auto;
+}
+
+.modal-hero-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+
+.modal-type {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.modal-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+  margin: 0;
+  color: #ffffff;
+  word-break: break-word;
+}
+
+.modal-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.modal-meta-dot { opacity: 0.5; }
+
+.modal-status {
+  align-self: flex-start;
+  margin-top: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.modal-status--planned { color: var(--gold); border-color: var(--gold-dim); }
+.modal-status--watching { color: var(--teal); border-color: var(--teal-dim); }
+.modal-status--done { color: var(--green); border-color: var(--green-dim); }
+
+.modal-note {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 12px;
+}
+
+.modal-note--error { color: var(--crimson); }
+
+.modal-overview {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+
+.modal-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.modal-fact {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modal-fact-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.modal-fact-value {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Laptop/desktop: there's plenty of screen real estate, so give the modal
+   more room instead of sitting at the same width used on tablet. */
+@media (min-width: 860px) {
+  .modal-card {
+    max-width: 640px;
+    max-height: calc(100vh - 96px);
+    padding: 32px;
+  }
+  .modal-hero { gap: 22px; margin-bottom: 20px; }
+  .modal-poster-slot { width: 150px; height: 220px; }
+  .modal-title { font-size: 36px; }
+  .modal-overview { font-size: 15px; margin-bottom: 20px; }
+  .modal-facts { gap: 12px; }
+}
+
+/* Phone: a fluid-width poster with a fixed height gets cropped and stretches
+   oddly as the viewport changes. Keep the tablet's side-by-side layout but
+   shrink it, and let the poster's own aspect ratio (not the viewport) decide
+   its height so it stays sharp and proportioned instead of "rubbery". */
+@media (max-width: 520px) {
+  .modal-backdrop { padding: 16px; }
+  .modal-card { padding: 16px; max-height: calc(100vh - 32px); }
+  .modal-hero { gap: 12px; padding-right: 26px; }
+  .modal-poster-slot {
+    width: 92px;
+    height: auto;
+    aspect-ratio: 2 / 3;
+  }
+  .modal-title { font-size: 22px; }
+}
