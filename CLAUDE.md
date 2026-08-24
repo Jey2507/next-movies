@@ -1,4 +1,4 @@
-# Marquee — Claude Code Guide
+# Up Next— Claude Code Guide
 
 ## Project
 React + Vite movie/series/anime watch queue.
@@ -58,7 +58,7 @@ IMPORTANT: never expose or copy API keys into documentation. The current TMDB ke
 
 ## UI
 
-The product is called **Marquee** and has a cinema/ticket visual identity.
+The product is called **Up Next** and has a cinema/ticket visual identity.
 
 Preserve the existing visual language:
 - cinema ticket cards
