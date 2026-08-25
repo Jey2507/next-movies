@@ -94,6 +94,33 @@ export function useLists(user) {
     refresh()
   }, [refresh])
 
+  // Live sync: when someone joins or leaves any of the caller's lists, the
+  // membership-derived bits (a shared list's "Oleg & Sasha" tab label, its
+  // memberNames) update on every member's screen without a reload — same
+  // idea as the `items` live-sync effect in App.jsx. Requires `list_members`
+  // to be added to Supabase's `supabase_realtime` publication (see
+  // schema.sql). No filter is needed: RLS applies to realtime the same as to
+  // normal selects, via list_members_select, so this only ever receives
+  // changes for lists the caller is already a member of. A full refresh()
+  // (rather than merging the single changed row) keeps this simple and
+  // correct, since a join/leave also touches the derived label/member list.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user) return
+    const channel = supabase
+      .channel(`list-members-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'list_members' },
+        () => {
+          refresh()
+        }
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user, refresh])
+
   // Keep the active list valid as the membership list changes (e.g. right
   // after signing in, or after joining a shared list).
   useEffect(() => {

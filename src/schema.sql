@@ -330,6 +330,21 @@ begin
   end if;
 end $$;
 
+-- Same idea for `list_members`, so the "live sync" effect in useLists.js
+-- can pick up someone joining or leaving a shared list (e.g. the
+-- "Oleg & Sasha" tab label) without a reload. RLS via list_members_select
+-- applies here too — a client only receives change events for lists it's
+-- already a member of.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'list_members'
+  ) then
+    alter publication supabase_realtime add table list_members;
+  end if;
+end $$;
+
 -- =========================================================
 -- LEGACY DATA MIGRATION — run separately, AFTER you've signed up
 -- =========================================================
