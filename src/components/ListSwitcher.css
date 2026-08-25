@@ -1,0 +1,219 @@
+.list-switcher {
+  margin-top: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.list-switcher-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.list-switcher-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.leave-list-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.leave-list-btn:hover { color: var(--crimson); }
+
+.list-switcher-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--crimson);
+  background: var(--surface-raised);
+  border: 1px dashed var(--crimson-dim);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.list-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.list-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  background: var(--surface-raised);
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.list-tab-icon {
+  font-size: 12px;
+}
+
+/* Color set per-list via the --tab-color/--tab-dim custom properties
+   ListSwitcher.jsx puts on each shared tab's style attribute (see
+   sharedTabColor), so different shared lists get different colors instead
+   of all looking the same. */
+.list-tab-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tab-color);
+  box-shadow: 0 0 0 2px var(--tab-dim);
+  flex-shrink: 0;
+}
+
+.list-tab--active.list-tab--personal {
+  color: var(--teal);
+  background: var(--teal-dim);
+  border-color: var(--teal);
+}
+
+.list-tab--active.list-tab--shared {
+  color: var(--tab-color);
+  background: var(--tab-dim);
+  border-color: var(--tab-color);
+}
+
+/* Primary call to action — the whole point of this widget for someone who
+   only has their personal list so far, so it gets real visual weight. */
+.invite-start-btn {
+  width: 100%;
+  background: var(--gold);
+  color: #201705;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  border-radius: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.invite-start-btn:hover { filter: brightness(1.08); }
+.invite-start-btn:disabled { opacity: 0.6; cursor: default; }
+
+.invite-code-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--surface-raised);
+  border: 1px solid var(--gold-dim);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.invite-code-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.invite-code-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+}
+
+.invite-code-value {
+  color: var(--gold);
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+
+.invite-code-copy {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+
+.invite-code-pill:hover .invite-code-copy {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+/* Secondary — small and muted so it doesn't compete with the primary CTA. */
+.join-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.join-form-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.join-input {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  border-radius: 6px;
+  padding: 7px 10px;
+  width: 110px;
+  outline: none;
+}
+
+.join-input::placeholder { color: var(--text-dim); letter-spacing: normal; }
+.join-input:focus { border-color: var(--gold); }
+
+.join-btn {
+  background: none;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  border-radius: 6px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.join-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+.join-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--crimson);
+}
+
+@media (max-width: 520px) {
+  .join-form { flex-wrap: wrap; }
+  .join-input { flex: 1 1 auto; width: auto; }
+}

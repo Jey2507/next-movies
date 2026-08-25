@@ -15,6 +15,14 @@
   --text-dim: #8b8f99;
   --green: #5fb37a;
   --green-dim: #26472f;
+  --purple: #a374db;
+  --purple-dim: #4a3166;
+  --blue: #4f9ddb;
+  --blue-dim: #1f3f5c;
+  --pink: #e069a0;
+  --pink-dim: #5c2846;
+  --orange: #e08a3f;
+  --orange-dim: #5c3a1a;
 }
 
 * { box-sizing: border-box; }
@@ -35,6 +43,59 @@ body {
 
 .queue-header {
   margin-bottom: 36px;
+}
+
+.queue-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.account-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+.account-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--gold);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-signout {
+  background: var(--surface-raised);
+  border: 1px solid var(--crimson-dim);
+  color: var(--crimson);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.account-signout:hover {
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: #ffffff;
+}
+
+@media (max-width: 520px) {
+  .queue-header-row { flex-wrap: wrap; }
+  .account-bar { padding-top: 0; }
+  .account-name { max-width: 120px; }
 }
 
 .brand-mark {

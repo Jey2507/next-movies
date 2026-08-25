@@ -1,8 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import './App.css'
 import { supabase, isSupabaseConfigured } from './supabaseClient'
+import { useAuth } from './useAuth'
+import { useLists } from './useLists'
 import DetailModal from './components/DetailModal'
 import ConfirmDeleteModal from './components/ConfirmDeleteModal'
+import ConfirmModal from './components/ConfirmModal'
+import AuthScreen from './components/AuthScreen'
+import ListSwitcher from './components/ListSwitcher'
 
 // Get a free key at https://www.themoviedb.org/settings/api and paste it below.
 const TMDB_API_KEY = '4f5ec21ec83179db03e267a97d8f594d'
@@ -92,6 +97,27 @@ function firstGenre(result) {
 }
 
 export default function App() {
+  const { user, authLoading, signUp, signIn, signOut } = useAuth()
+  const {
+    lists,
+    listsError,
+    activeListId,
+    activeList,
+    setActiveListId,
+    createSharedList,
+    createError,
+    joinList,
+    joinError,
+    leaveList,
+    leaveError,
+  } = useLists(user)
+  const [pendingSignOut, setPendingSignOut] = useState(false)
+  const [pendingLeaveList, setPendingLeaveList] = useState(null)
+  // display_name is captured at signup into user_metadata (see AuthScreen
+  // + useAuth's signUp) and Supabase mirrors it onto the session's user
+  // object, so no extra query is needed just to label the account bar.
+  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || ''
+
   const [items, setItems] = useState(isSupabaseConfigured ? [] : loadLocal)
   const [loading, setLoading] = useState(isSupabaseConfigured)
   const [typeFilter, setTypeFilter] = useState('all')
@@ -114,14 +140,22 @@ export default function App() {
   const [activeItem, setActiveItem] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
 
-  // Load from Supabase on mount (falls back to localStorage if not configured)
+  // Load from Supabase on mount, scoped to the active list (falls back to
+  // localStorage — a single unscoped list — if Supabase isn't configured)
   useEffect(() => {
     if (!isSupabaseConfigured) return
+    if (!activeListId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setItems([])
+      setLoading(false)
+      return
+    }
     let cancelled = false
     async function load() {
       const { data, error } = await supabase
         .from('items')
         .select('*')
+        .eq('list_id', activeListId)
         .order('position', { ascending: true })
       if (!cancelled) {
         if (!error && data) {
@@ -138,7 +172,7 @@ export default function App() {
     }
     load()
     return () => { cancelled = true }
-  }, [])
+  }, [activeListId])
 
   // Keep localStorage as an offline mirror whenever Supabase isn't configured
   useEffect(() => {
@@ -191,7 +225,12 @@ export default function App() {
     const position = items.length ? Math.max(...items.map((i) => i.position || 0)) + 1 : 1
     const withPosition = { ...entry, position }
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('items').insert(withPosition).select().single()
+      if (!activeListId) return
+      const { data, error } = await supabase
+        .from('items')
+        .insert({ ...withPosition, list_id: activeListId })
+        .select()
+        .single()
       if (!error && data) setItems((prev) => [...prev, data])
     } else {
       setItems((prev) => [...prev, { ...withPosition, id: Date.now() }])
@@ -313,12 +352,53 @@ export default function App() {
     })
   }, [orderKey])
 
+  if (isSupabaseConfigured && authLoading) {
+    return (
+      <div className="queue-app">
+        <div className="empty-state">
+          <p className="empty-title">Loading…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (isSupabaseConfigured && !user) {
+    return <AuthScreen onSignUp={signUp} onSignIn={signIn} />
+  }
+
   return (
     <div className="queue-app">
       <header className="queue-header">
-        <span className="queue-eyebrow">Now booking</span>
-        <h1 className="queue-title">Up next</h1>
-        <p className="queue-sub">Your queue of titles waiting for a premiere night.</p>
+        <div className="queue-header-row">
+          <div className="queue-header-titles">
+            <span className="queue-eyebrow">Now booking</span>
+            <h1 className="queue-title">Up next</h1>
+            <p className="queue-sub">Your queue of titles waiting for a premiere night.</p>
+          </div>
+          {isSupabaseConfigured && user && (
+            <div className="account-bar">
+              <span className="account-name">{displayName}</span>
+              <button type="button" className="account-signout" onClick={() => setPendingSignOut(true)}>
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+        {isSupabaseConfigured && (
+          <ListSwitcher
+            lists={lists}
+            listsError={listsError}
+            activeListId={activeListId}
+            activeList={activeList}
+            onSwitch={setActiveListId}
+            onCreateShared={createSharedList}
+            createError={createError}
+            onJoin={joinList}
+            joinError={joinError}
+            onRequestLeave={setPendingLeaveList}
+            leaveError={leaveError}
+          />
+        )}
       </header>
 
       {!isSupabaseConfigured && (
@@ -444,6 +524,11 @@ export default function App() {
         <div className="empty-state">
           <p className="empty-title">Loading…</p>
         </div>
+      ) : isSupabaseConfigured && !activeListId ? (
+        <div className="empty-state">
+          <p className="empty-title">No list yet</p>
+          <p className="empty-sub">Create or join a list above to start your queue.</p>
+        </div>
       ) : visible.length === 0 ? (
         <div className="empty-state">
           <p className="empty-title">Nothing here</p>
@@ -551,6 +636,36 @@ export default function App() {
         onConfirm={() => {
           removeItem(pendingDelete.id)
           setPendingDelete(null)
+        }}
+      />
+
+      <ConfirmModal
+        open={pendingSignOut}
+        title="Sign out?"
+        body="You'll need to sign back in to see your lists again."
+        confirmLabel="Sign out"
+        tone="neutral"
+        onCancel={() => setPendingSignOut(false)}
+        onConfirm={() => {
+          setPendingSignOut(false)
+          signOut()
+        }}
+      />
+
+      <ConfirmModal
+        open={!!pendingLeaveList}
+        title="Leave this list?"
+        body={
+          pendingLeaveList && pendingLeaveList.memberNames.length <= 1
+            ? `You're the only one left in "${pendingLeaveList.label}" — leaving deletes it and everything in it, permanently.`
+            : `You'll lose access to "${pendingLeaveList?.label}" and won't see its titles anymore. The other members keep it.`
+        }
+        confirmLabel="Leave list"
+        tone="danger"
+        onCancel={() => setPendingLeaveList(null)}
+        onConfirm={() => {
+          leaveList(pendingLeaveList.id)
+          setPendingLeaveList(null)
         }}
       />
     </div>
