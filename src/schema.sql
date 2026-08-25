@@ -330,6 +330,19 @@ begin
   end if;
 end $$;
 
+-- By default Postgres only puts a table's primary key into the "old row"
+-- image it sends out for UPDATE/DELETE (REPLICA IDENTITY DEFAULT) — for
+-- `items` that's just `id`, without `list_id`. The live-sync effect's
+-- subscription filters on `list_id=eq.${activeListId}`, and that filter is
+-- evaluated against the old row for DELETE, so with only `id` present the
+-- filter can never match and DELETE events silently never arrive (INSERT
+-- and UPDATE are unaffected — those filter on the *new* row, which always
+-- has every column). Symptom: adding an item to a shared list shows up
+-- live for everyone, but removing one doesn't until the page is reloaded.
+-- REPLICA IDENTITY FULL makes the old row image include every column, so
+-- the filter has `list_id` to match against on DELETE too.
+alter table items replica identity full;
+
 -- Same idea for `list_members`, so the "live sync" effect in useLists.js
 -- can pick up someone joining or leaving a shared list (e.g. the
 -- "Oleg & Sasha" tab label) without a reload. RLS via list_members_select
