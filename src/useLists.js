@@ -58,10 +58,15 @@ export function useLists(user) {
     const listIds = listRows.map((l) => l.id)
     let membersByList = new Map()
     if (listIds.length) {
+      // Ordered by joined_at so the " & "-joined label below comes out in
+      // the same order for every member, regardless of who's viewing —
+      // without an explicit order, Postgres doesn't guarantee row order,
+      // so two members could see e.g. "Petro & Oleg" vs "Oleg & Petro".
       const { data: memberRows } = await supabase
         .from('list_members')
-        .select('list_id, user_id, profiles(display_name)')
+        .select('list_id, user_id, joined_at, profiles(display_name)')
         .in('list_id', listIds)
+        .order('joined_at', { ascending: true })
       if (memberRows) {
         membersByList = memberRows.reduce((map, row) => {
           const names = map.get(row.list_id) || []
