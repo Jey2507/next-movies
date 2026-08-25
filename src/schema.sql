@@ -311,6 +311,26 @@ after delete on list_members
 for each row execute function cleanup_empty_list();
 
 -- =========================================================
+-- STEP 9: realtime — live-sync shared lists across members
+-- =========================================================
+-- Adds `items` to Supabase's built-in `supabase_realtime` publication so
+-- clients can subscribe to postgres_changes on it (see the "Live sync"
+-- effect in App.jsx). Without this, INSERT/UPDATE/DELETE on `items` never
+-- reach other members' browsers and they'd need to reload to see changes.
+-- RLS still applies to realtime the same as to normal selects, via
+-- items_select — a client only ever receives change events for rows it's
+-- allowed to read (i.e. lists it's a member of).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'items'
+  ) then
+    alter publication supabase_realtime add table items;
+  end if;
+end $$;
+
+-- =========================================================
 -- LEGACY DATA MIGRATION — run separately, AFTER you've signed up
 -- =========================================================
 -- Edit v_owner_email below to the address you actually sign up with, then

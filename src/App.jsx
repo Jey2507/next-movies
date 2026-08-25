@@ -174,6 +174,37 @@ export default function App() {
     return () => { cancelled = true }
   }, [activeListId])
 
+  // Live sync: mirror INSERT/UPDATE/DELETE on `items` for the active list as
+  // they happen, so a shared list updates on every member's screen without a
+  // reload. Requires the `items` table to be added to Supabase's
+  // `supabase_realtime` publication (see schema.sql). Own writes round-trip
+  // through this too (Realtime doesn't distinguish the sender) — merged by
+  // id instead of blindly appended, so they land as a harmless no-op update.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !activeListId) return
+    const channel = supabase
+      .channel(`items-list-${activeListId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'items', filter: `list_id=eq.${activeListId}` },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            setItems((prev) => prev.filter((i) => i.id !== payload.old.id))
+            return
+          }
+          setItems((prev) => {
+            const exists = prev.some((i) => i.id === payload.new.id)
+            if (exists) return prev.map((i) => (i.id === payload.new.id ? payload.new : i))
+            return [...prev, payload.new]
+          })
+        }
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [activeListId])
+
   // Keep localStorage as an offline mirror whenever Supabase isn't configured
   useEffect(() => {
     if (!isSupabaseConfigured) saveLocal(items)
