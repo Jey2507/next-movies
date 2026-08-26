@@ -186,27 +186,57 @@
 
 .ticket-meta-dot { opacity: 0.5; }
 
-.ticket-meta-rating { color: var(--gold); }
-
-.status-select {
+.ticket-actions {
   margin-top: 12px;
-  width: 100%;
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
-  color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  border-radius: 6px;
-  padding: 7px 8px;
-  outline: none;
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
 }
 
-.status-select--planned { color: var(--gold); border-color: var(--gold-dim); }
-.status-select--watching { color: var(--teal); border-color: var(--teal-dim); }
-.status-select--done { color: var(--green); border-color: var(--green-dim); }
-.status-select--dropped { color: var(--crimson); border-color: var(--crimson-dim); }
+.ticket-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: color-mix(in srgb, var(--text) 50%, var(--text-dim));
+}
+
+.ticket-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ticket-status--planned .ticket-status-dot { background: var(--gold); }
+.ticket-status--watching .ticket-status-dot { background: var(--teal); }
+.ticket-status--done .ticket-status-dot { background: var(--green); }
+.ticket-status--dropped .ticket-status-dot { background: var(--crimson); }
+
+.ticket-my-rating {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.ticket-my-rating-star {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--line);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.ticket-my-rating-star:hover { color: var(--gold-dim); }
+.ticket-my-rating-star--filled { color: var(--gold); }
 
 @media (max-width: 640px) {
   .ticket-stub { width: 44px; }

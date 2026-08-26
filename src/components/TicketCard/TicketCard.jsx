@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import './TicketCard.css'
 import { TYPES, STATUSES } from '../../constants'
 
@@ -7,22 +8,26 @@ function initials(type) {
   return 'ANI'
 }
 
-// Average of item.ratings — see schema.sql's `ratings` column (one entry
-// per rater, {authorName: 1-5, ...}). Null when nobody's rated it yet, so
-// the card's meta row can just skip the badge.
-function averageRating(ratings) {
-  if (!ratings) return null
-  const values = Object.values(ratings).filter((v) => typeof v === 'number' && v > 0)
-  if (!values.length) return null
-  return values.reduce((sum, v) => sum + v, 0) / values.length
-}
-
 // One cinema-ticket card in the grid. `ticketRefs` is App.jsx's
 // `useRef(new Map())` — registering/unregistering this card's DOM node into
 // it is what drives the FLIP reorder animation there (see the
 // useLayoutEffect keyed on `orderKey`).
-export default function TicketCard({ item, ticketRefs, isFirst, isLast, onOpen, onMoveUp, onMoveDown, onRemove, onChangeStatus }) {
-  const avgRating = averageRating(item.ratings)
+export default function TicketCard({ item, ticketRefs, isFirst, isLast, onOpen, onMoveUp, onMoveDown, onRemove, onRate, viewerName }) {
+  // Same-key convention as rateItem in App.jsx / DetailModal's myRating.
+  const myName = viewerName || 'You'
+  const myRating = item.ratings?.[myName] || 0
+  // Guards against a double-fired click landing as two calls in quick
+  // succession — see the identical guard in DetailModal's handleRate.
+  const ratingClickRef = useRef(false)
+
+  function handleRate(value) {
+    if (!onRate) return
+    if (ratingClickRef.current) return
+    ratingClickRef.current = true
+    setTimeout(() => { ratingClickRef.current = false }, 400)
+    onRate(item.id, myRating === value ? null : value)
+  }
+
   return (
     <article
       className={'ticket ticket--' + item.type}
@@ -91,19 +96,27 @@ export default function TicketCard({ item, ticketRefs, isFirst, isLast, onOpen, 
             {item.year && <span>{item.year}</span>}
             {item.year && item.genre && <span className="ticket-meta-dot">•</span>}
             {item.genre && <span>{item.genre}</span>}
-            {avgRating != null && (item.year || item.genre) && <span className="ticket-meta-dot">•</span>}
-            {avgRating != null && <span className="ticket-meta-rating">★ {avgRating.toFixed(1)}</span>}
           </div>
-          <select
-            className={'status-select status-select--' + item.status}
-            value={item.status}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => onChangeStatus(item.id, e.target.value)}
-          >
-            {STATUSES.map((s) => (
-              <option key={s.id} value={s.id} style={{ color: s.color }}>{s.label}</option>
-            ))}
-          </select>
+          <div className="ticket-actions">
+            <span className={'ticket-status ticket-status--' + item.status}>
+              <span className="ticket-status-dot" aria-hidden="true" />
+              {STATUSES.find((s) => s.id === item.status)?.label || item.status}
+            </span>
+            <div className="ticket-my-rating" role="radiogroup" aria-label={`Your rating for ${item.title}`}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={'ticket-my-rating-star' + (n <= myRating ? ' ticket-my-rating-star--filled' : '')}
+                  onClick={(e) => { e.stopPropagation(); handleRate(n) }}
+                  aria-pressed={n === myRating}
+                  aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </article>

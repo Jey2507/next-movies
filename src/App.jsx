@@ -544,7 +544,8 @@ export default function App() {
               onMoveUp={(id) => moveItem(id, 'up')}
               onMoveDown={(id) => moveItem(id, 'down')}
               onRemove={setPendingDelete}
-              onChangeStatus={changeStatus}
+              onRate={rateItem}
+              viewerName={displayName}
             />
           ))}
         </div>
@@ -557,6 +558,7 @@ export default function App() {
         imgBase={TMDB_IMG}
         isPersonal={!isSupabaseConfigured || !!activeList?.is_personal}
         onSaveNotes={updateNotes}
+        onChangeStatus={changeStatus}
         onRate={rateItem}
         memberNames={activeList?.memberNames}
         viewerName={displayName}

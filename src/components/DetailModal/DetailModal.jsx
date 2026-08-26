@@ -3,14 +3,9 @@ import './DetailModal.css'
 import { diffNoteSegments, committedNoteSegments } from '../../noteSegments'
 import { paletteRotationFor, authorColor } from '../../noteAuthorColors'
 import { useTmdbDetails } from '../../useTmdbDetails'
+import { STATUSES } from '../../constants'
 
 const NOTES_SAVE_DELAY = 600
-
-const STATUS_LABELS = {
-  planned: 'Plan to watch',
-  watching: 'In process',
-  done: 'Done',
-}
 
 const TYPE_LABELS = {
   movie: 'Movie',
@@ -18,7 +13,7 @@ const TYPE_LABELS = {
   anime: 'Anime',
 }
 
-export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal, onSaveNotes, onRate, memberNames, viewerName, listId }) {
+export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal, onSaveNotes, onChangeStatus, onRate, memberNames, viewerName, listId }) {
   const { details, loading, error } = useTmdbDetails(item, apiKey)
   const posterRef = useRef(null)
   const modalCardRef = useRef(null)
@@ -399,9 +394,16 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
               {details?.vote_average > 0 && <span className="modal-meta-dot">•</span>}
               {details?.vote_average > 0 && <span>★ {details.vote_average.toFixed(1)}</span>}
             </div>
-            <span className={'modal-status modal-status--' + item.status}>
-              {STATUS_LABELS[item.status] || item.status}
-            </span>
+            <select
+              className={'modal-status-select modal-status-select--' + item.status}
+              value={item.status}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onChangeStatus(item.id, e.target.value)}
+            >
+              {STATUSES.map((s) => (
+                <option key={s.id} value={s.id} style={{ color: s.color }}>{s.label}</option>
+              ))}
+            </select>
           </div>
         </div>
 

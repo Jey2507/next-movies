@@ -176,20 +176,24 @@
 
 .modal-meta-dot { opacity: 0.5; }
 
-.modal-status {
+.modal-status-select {
   align-self: flex-start;
   margin-top: 6px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   letter-spacing: 0.04em;
-  border: 1px solid var(--line);
   border-radius: 999px;
   padding: 4px 10px;
+  outline: none;
+  cursor: pointer;
 }
 
-.modal-status--planned { color: var(--gold); border-color: var(--gold-dim); }
-.modal-status--watching { color: var(--teal); border-color: var(--teal-dim); }
-.modal-status--done { color: var(--green); border-color: var(--green-dim); }
+.modal-status-select--planned { color: var(--gold); border-color: var(--gold-dim); }
+.modal-status-select--watching { color: var(--teal); border-color: var(--teal-dim); }
+.modal-status-select--done { color: var(--green); border-color: var(--green-dim); }
 
 /* Small round icon parked at the bottom of the card (in normal flow, after
    the last section) that reveals the notes panel below. `sticky` keeps it
