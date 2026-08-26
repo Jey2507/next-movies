@@ -13,12 +13,10 @@
 // note actually gets edited (mostly appending, or fixing one spot), and
 // cheap enough to re-run on every keystroke for a live preview while
 // someone is still typing.
-export function diffNoteSegments(oldSegments, newText, author) {
-  const segments = Array.isArray(oldSegments) ? oldSegments : []
-  const oldText = segments.map((s) => s.text).join('')
-
-  if (newText === oldText) return segments
-
+//
+// Shared by diffNoteSegments and rebaseText below — both need "how much of
+// the start/end stayed the same" between two versions of the text.
+function commonPrefixSuffix(oldText, newText) {
   const maxPrefix = Math.min(oldText.length, newText.length)
   let prefixLen = 0
   while (prefixLen < maxPrefix && oldText[prefixLen] === newText[prefixLen]) prefixLen++
@@ -32,6 +30,16 @@ export function diffNoteSegments(oldSegments, newText, author) {
     suffixLen++
   }
 
+  return { prefixLen, suffixLen }
+}
+
+export function diffNoteSegments(oldSegments, newText, author) {
+  const segments = Array.isArray(oldSegments) ? oldSegments : []
+  const oldText = segments.map((s) => s.text).join('')
+
+  if (newText === oldText) return segments
+
+  const { prefixLen, suffixLen } = commonPrefixSuffix(oldText, newText)
   const middleText = newText.slice(prefixLen, newText.length - suffixLen)
   const suffixStart = oldText.length - suffixLen
 
@@ -76,4 +84,38 @@ export function committedNoteSegments(item) {
   if (Array.isArray(item?.notes_segments) && item.notes_segments.length > 0) return item.notes_segments
   if (item?.notes) return [{ author: item.notes_updated_by_name || null, text: item.notes }]
   return []
+}
+
+// Handles two people editing the same shared note at once: if a save from
+// someone else lands while this client still has an unflushed local edit
+// sitting in its textarea, the naive thing (App.jsx's updateNotes just
+// overwriting `notes` with whatever this client has) would silently erase
+// whatever the other person just wrote. Instead, re-apply *only the part
+// this client actually changed* on top of the other person's newer text —
+// found by diffing this client's own base (the note as it was right before
+// this local edit started) against its current draft, then splicing that
+// same prefix/middle/suffix split onto the freshly-arrived text.
+//
+// Like the rest of this file, this is a heuristic (assumes the two edits
+// land in different spots), not a true three-way merge — but it means a
+// concurrent edit gets folded in instead of clobbered, which is what
+// matters for a shared note between a couple of people.
+export function rebaseText(localBaseText, localDraftText, remoteText) {
+  if (localDraftText === localBaseText) return remoteText
+  if (remoteText === localBaseText) return localDraftText
+
+  const { prefixLen, suffixLen } = commonPrefixSuffix(localBaseText, localDraftText)
+  const middleText = localDraftText.slice(prefixLen, localDraftText.length - suffixLen)
+
+  // The remote text may be shorter than localBaseText right around these
+  // boundaries (e.g. the other person deleted something there) — clamp so
+  // the slices below can't run past each other or off the end of the string.
+  const clampedPrefixLen = Math.min(prefixLen, remoteText.length)
+  const clampedSuffixLen = Math.min(suffixLen, remoteText.length - clampedPrefixLen)
+
+  return (
+    remoteText.slice(0, clampedPrefixLen) +
+    middleText +
+    (clampedSuffixLen > 0 ? remoteText.slice(remoteText.length - clampedSuffixLen) : '')
+  )
 }

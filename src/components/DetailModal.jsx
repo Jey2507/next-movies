@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './DetailModal.css'
-import { diffNoteSegments, committedNoteSegments } from '../noteSegments'
+import { diffNoteSegments, committedNoteSegments, rebaseText } from '../noteSegments'
 
 const NOTES_SAVE_DELAY = 600
 
@@ -177,6 +177,11 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
   // during render when a different item opens, instead of in an effect, to
   // avoid an extra render showing the previous item's notes for a frame.
   const [notesDraft, setNotesDraft] = useState(item?.notes || '')
+  // What this client last saw as the *committed* note (i.e. item.notes),
+  // kept separate from notesDraft so a later remote change can be told
+  // apart from this client's own edit-in-progress — see the rebase effect
+  // below.
+  const lastKnownNotesRef = useRef(item?.notes || '')
   const [notesForItem, setNotesForItem] = useState(item?.id ?? null)
   // The notes panel itself: hidden behind a small toggle icon at the bottom
   // of the card, sliding down over the rest of the modal when opened (see
@@ -187,6 +192,9 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
     setNotesForItem(item?.id ?? null)
     setNotesDraft(item?.notes || '')
     setNotesOpen(false)
+    // lastKnownNotesRef itself is re-synced by the effect below, which also
+    // runs on this same item?.id change (refs can't be written during
+    // render — see react-hooks/refs).
   }
   const notesSaveTimer = useRef(null)
   // The one still-unsent edit, as { id, value } — the *id it was made for*,
@@ -229,9 +237,27 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
 
   // Pick up notes changes that arrive from elsewhere (another shared-list
   // member editing the same item, via the live-sync in App.jsx) while it's
-  // open — but never while there's an unsent local edit in flight.
+  // open. With no local edit in flight this is just "show the new text".
+  // With one in flight, naively ignoring the remote change (like this used
+  // to) means the next flush overwrites it outright — that's the
+  // "colors/edits clobber each other" failure two people typing at once
+  // would hit. Instead, rebase: re-apply only what *this* client actually
+  // typed (relative to lastKnownNotesRef, its own pre-edit baseline) onto
+  // the freshly-arrived text, and let the already-scheduled debounced save
+  // send that merged result instead of the stale draft.
   useEffect(() => {
-    if (!pendingNotesRef.current) setNotesDraft(item?.notes || '')
+    const remoteNotes = item?.notes || ''
+    if (pendingNotesRef.current) {
+      if (remoteNotes !== lastKnownNotesRef.current) {
+        const merged = rebaseText(lastKnownNotesRef.current, notesDraft, remoteNotes)
+        setNotesDraft(merged)
+        pendingNotesRef.current = { id: item.id, value: merged }
+      }
+    } else {
+      setNotesDraft(remoteNotes)
+    }
+    lastKnownNotesRef.current = remoteNotes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.notes, item?.id])
 
   // Flush a pending debounced edit as soon as the item it belongs to is no
