@@ -17,9 +17,19 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
   const { details, loading, error } = useTmdbDetails(item, apiKey)
   const posterRef = useRef(null)
   const modalCardRef = useRef(null)
+  // The visible info card (modal-content), not the full-viewport modal-card
+  // — the notes panel is sized off this one (see toggleNotesPanel) so it
+  // matches the same width/position as the rest of the detail info, instead
+  // of spanning the whole transparent full-screen backdrop.
+  const modalContentRef = useRef(null)
   // Backdrop layer behind the (visually transparent) notes textarea that
   // renders the actual, per-author colored text — see the notes panel JSX.
   const notesHighlightRef = useRef(null)
+  // The notes textarea itself (personal or shared — only one of the two ever
+  // mounts at once, see the notes panel JSX) — scrolled to the bottom when
+  // the panel opens, see the effect below, so the most recently written text
+  // is what's in view instead of the start of a long note.
+  const notesInputRef = useRef(null)
   // Which item id this modal has already tried to backfill a `backdrop` for
   // (see the effect below) — keeps a slow save from being retried on every
   // re-render while it's still in flight.
@@ -226,20 +236,41 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
     if (e.propertyName === 'transform' && zoomPhase === 'closing') setZoomPhase('idle')
   }
 
-  // Sizes the panel off the card's own on-screen rect (position: fixed, same
-  // reasoning as the poster zoom above) rather than a plain in-flow reveal,
-  // so "the full height of the modal" means the actual visible card height
-  // right now, not however tall its scrollable content happens to be.
+  // Only left/width come off modal-content's own on-screen rect (position:
+  // fixed, same reasoning as the poster zoom above) — that's what makes the
+  // panel line up with the detail-info card horizontally instead of the
+  // full-width transparent page around it. top/height deliberately do *not*
+  // come from the rect: modal-content can be much taller than one screen,
+  // and its rect.top/height reflect wherever the page happens to be
+  // scrolled to when this is clicked — sizing the fixed-position panel off
+  // that used to plant it partway off-screen (or push its start point
+  // way above the viewport) if you'd scrolled down first. The panel just
+  // covers the full viewport height (see .modal-notes-panel's own top/height
+  // in DetailModal.css) instead, so it's always fully reachable and its own
+  // internal scroll is never fighting scroll-position math from a moment
+  // that's already gone stale by the time you're reading it.
   function toggleNotesPanel() {
     if (!notesOpen) {
-      const el = modalCardRef.current
+      const el = modalContentRef.current
       if (el) {
         const rect = el.getBoundingClientRect()
-        setNotesPanelRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height })
+        setNotesPanelRect({ left: rect.left, width: rect.width })
       }
     }
     setNotesOpen((open) => !open)
   }
+
+  // Jumps the notes textarea (and its colored-text backdrop, for shared
+  // notes) to the bottom whenever the panel opens, so whatever was most
+  // recently written is already in view instead of the note's very start —
+  // useLayoutEffect, not a plain effect, so it happens before the opening
+  // slide-up paints rather than as a visible jump a frame later.
+  useLayoutEffect(() => {
+    if (!notesOpen) return
+    const el = notesInputRef.current
+    if (el) el.scrollTop = el.scrollHeight
+    if (notesHighlightRef.current) notesHighlightRef.current.scrollTop = notesHighlightRef.current.scrollHeight
+  }, [notesOpen])
 
   // Blocks page scroll behind the modal for as long as it's open (any
   // device, not just mobile) — otherwise a touch/wheel drag that misses the
@@ -389,14 +420,17 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
     <div className="modal-backdrop" onClick={onClose}>
       <div
         ref={modalCardRef}
-        className={'modal-card modal-card--' + item.type}
+        className={
+          'modal-card modal-card--' + item.type +
+          // Locks the info page's own scroll while the notes/comments panel
+          // is open — it covers the visible card but, being position: fixed,
+          // doesn't stop the card underneath from still scrolling on its own.
+          (notesOpen ? ' modal-card--notes-open' : '')
+        }
         role="dialog"
         aria-modal="true"
         aria-label={item.title}
-        onClick={(e) => e.stopPropagation()}
       >
-        <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
-
         <div
           className={
             'modal-zoom-overlay' +
@@ -412,228 +446,246 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
           }}
         />
 
-        <div className="modal-hero">
-          {poster ? (
-            <div className="modal-poster-slot">
-              <img
-                ref={posterRef}
-                className={'modal-poster' + (zoomed ? ' modal-poster--zoomed' : '')}
-                style={
-                  zoomed
-                    ? {
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        width: zoomBox.width + 'px',
-                        height: zoomBox.height + 'px',
-                        transformOrigin: '0 0',
-                        transform: zoomPhase === 'open' ? zoomTarget : zoomStart,
-                        transition:
-                          zoomPhase === 'opening' ? 'none' : 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1)',
-                      }
-                    : undefined
-                }
-                src={poster}
-                alt=""
-                onClick={(e) => {
-                  e.stopPropagation()
-                  togglePosterZoom()
-                }}
-                onTransitionEnd={handlePosterTransitionEnd}
-              />
-            </div>
-          ) : (
-            <div className="modal-poster-slot">
-              <div className="modal-poster modal-poster--empty" />
-            </div>
-          )}
-          <div className="modal-hero-info">
-            <span className="modal-type">{TYPE_LABELS[item.type] || item.type}</span>
-            <h2 className="modal-title">{item.title}</h2>
-            <div className="modal-meta">
-              {item.year && <span>{item.year}</span>}
-              {item.year && item.genre && <span className="modal-meta-dot">•</span>}
-              {item.genre && <span>{item.genre}</span>}
-              {details?.vote_average > 0 && <span className="modal-meta-dot">•</span>}
-              {details?.vote_average > 0 && <span>★ {details.vote_average.toFixed(1)}</span>}
-            </div>
-            <select
-              className={'modal-status-select modal-status-select--' + item.status}
-              value={item.status}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => onChangeStatus(item.id, e.target.value)}
-            >
-              {STATUSES.map((s) => (
-                <option key={s.id} value={s.id} style={{ color: s.color }}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        {/* Full-screen page on every device now (see DetailModal.css), so the
+            card itself can be arbitrarily wide — this wrapper keeps the
+            actual content (hero, overview, facts, trailer, ratings) at a
+            comfortable, centered reading width instead of stretching text
+            and boxes edge-to-edge on a wide screen. modal-zoom-overlay stays
+            outside it since it's sized off the viewport, not this column —
+            modal-notes-panel is a sibling too (it's position: fixed so its
+            DOM nesting doesn't matter) but is deliberately sized off *this*
+            element's rect (see modalContentRef/toggleNotesPanel) so it
+            matches this card's width instead of the full page's. Its own
+            click handler stops the click from reaching modal-backdrop's
+            onClose below — modal-card itself no longer does that, so a
+            click anywhere outside this card (the dim/blurred backdrop
+            showing through modal-card's now-transparent background) closes
+            the page, same as clicking the old modal's backdrop used to. */}
+        <div className="modal-content" ref={modalContentRef} onClick={(e) => e.stopPropagation()}>
+          <button className="modal-close" onClick={onClose} aria-label="Close">×</button>
 
-        {!loading && error && <p className="modal-note modal-note--error">{error}</p>}
-
-        {/* While the TMDB fetch is in flight, reserve roughly the same
-            footprint the real overview/facts are about to take instead of
-            just an inline "Loading…" line — everything below (ratings, the
-            notes toggle) would otherwise jump down all at once the moment
-            the fetch resolves, landing wherever the pointer happens to be
-            mid-click. The fact-box count is picked from `isTv`, which is
-            already known from `item.type` — no need to wait on the fetch
-            for that part. */}
-        {loading ? (
-          <>
-            <div className="modal-overview-skeleton" aria-hidden="true">
-              <span className="modal-skeleton-bar" />
-              <span className="modal-skeleton-bar" />
-              <span className="modal-skeleton-bar" />
-              <span className="modal-skeleton-bar modal-skeleton-bar--short" />
-            </div>
-            <div className="modal-facts">
-              {(isTv ? [0, 1, 2] : [0, 1]).map((i) => (
-                <div className="modal-fact" key={i} aria-hidden="true">
-                  <span className="modal-skeleton-bar modal-skeleton-bar--label" />
-                  <span className="modal-skeleton-bar modal-skeleton-bar--value" />
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            {details?.overview && <p className="modal-overview">{details.overview}</p>}
-
-            {isTv && details && (
-              <div className="modal-facts">
-                {typeof details.number_of_seasons === 'number' && (
-                  <div className="modal-fact">
-                    <span className="modal-fact-label">Seasons</span>
-                    <span className="modal-fact-value">{details.number_of_seasons}</span>
-                  </div>
-                )}
-                {typeof details.number_of_episodes === 'number' && (
-                  <div className="modal-fact">
-                    <span className="modal-fact-label">Episodes</span>
-                    <span className="modal-fact-value">{details.number_of_episodes}</span>
-                  </div>
-                )}
-                {details.status && (
-                  <div className="modal-fact">
-                    <span className="modal-fact-label">Airing status</span>
-                    <span className="modal-fact-value">{details.status}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!isTv && details && (details.runtime > 0 || details.status) && (
-              <div className="modal-facts">
-                {details.runtime > 0 && (
-                  <div className="modal-fact">
-                    <span className="modal-fact-label">Runtime</span>
-                    <span className="modal-fact-value">{details.runtime} min</span>
-                  </div>
-                )}
-                {details.status && (
-                  <div className="modal-fact">
-                    <span className="modal-fact-label">Status</span>
-                    <span className="modal-fact-value">{details.status}</span>
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {!loading && trailer && (
-          <div className="modal-trailer">
-            {trailerOpen ? (
-              <div className="modal-trailer-frame">
-                <iframe
-                  src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
-                  title={trailer.name || 'Trailer'}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
+          <div className="modal-hero">
+            {poster ? (
+              <div className="modal-poster-slot">
+                <img
+                  ref={posterRef}
+                  className={'modal-poster' + (zoomed ? ' modal-poster--zoomed' : '')}
+                  style={
+                    zoomed
+                      ? {
+                          position: 'fixed',
+                          top: 0,
+                          left: 0,
+                          width: zoomBox.width + 'px',
+                          height: zoomBox.height + 'px',
+                          transformOrigin: '0 0',
+                          transform: zoomPhase === 'open' ? zoomTarget : zoomStart,
+                          transition:
+                            zoomPhase === 'opening' ? 'none' : 'transform 380ms cubic-bezier(0.22, 1, 0.36, 1)',
+                        }
+                      : undefined
+                  }
+                  src={poster}
+                  alt=""
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    togglePosterZoom()
+                  }}
+                  onTransitionEnd={handlePosterTransitionEnd}
                 />
               </div>
             ) : (
-              <button
-                type="button"
-                className="modal-trailer-thumb"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setTrailerOpen(true)
-                }}
-                aria-label="Play trailer"
+              <div className="modal-poster-slot">
+                <div className="modal-poster modal-poster--empty" />
+              </div>
+            )}
+            <div className="modal-hero-info">
+              <span className="modal-type">{TYPE_LABELS[item.type] || item.type}</span>
+              <h2 className="modal-title">{item.title}</h2>
+              <div className="modal-meta">
+                {item.year && <span>{item.year}</span>}
+                {item.year && item.genre && <span className="modal-meta-dot">•</span>}
+                {item.genre && <span>{item.genre}</span>}
+                {details?.vote_average > 0 && <span className="modal-meta-dot">•</span>}
+                {details?.vote_average > 0 && <span>★ {details.vote_average.toFixed(1)}</span>}
+              </div>
+              <select
+                className={'modal-status-select modal-status-select--' + item.status}
+                value={item.status}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => onChangeStatus(item.id, e.target.value)}
               >
-                <img
-                  className="modal-trailer-thumb-img"
-                  src={`https://img.youtube.com/vi/${trailer.key}/hqdefault.jpg`}
-                  alt=""
-                  loading="lazy"
-                />
-                <span className="modal-trailer-play">▶</span>
-              </button>
+                {STATUSES.map((s) => (
+                  <option key={s.id} value={s.id} style={{ color: s.color }}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="modal-ratings">
+            <div className="modal-ratings-header">
+              <span className="modal-ratings-label">Your rating</span>
+              {/* Always mounted, same reasoning as modal-ratings-list below —
+                  this used to only render once ratingAverage existed, so the
+                  very first click on a never-rated item (0 -> 1 ratings) made
+                  it pop into the row from nothing. A placeholder keeps the
+                  header's height identical before and after that click. */}
+              <span className="modal-ratings-average">
+                {ratingAverage != null ? (
+                  <>
+                    ★ {ratingAverage.toFixed(1)}
+                    <span className="modal-ratings-count">
+                      {' '}· {ratingCount} {ratingCount === 1 ? 'rating' : 'ratings'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="modal-ratings-count">No ratings yet</span>
+                )}
+              </span>
+            </div>
+            <div className="modal-rating-stars" role="radiogroup" aria-label="Your rating">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={'modal-rating-star' + (n <= myRating ? ' modal-rating-star--filled' : '')}
+                  onClick={() => handleRate(n)}
+                  aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
+                  aria-pressed={n === myRating}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            {/* Always mounted (one entry per list member, not just per rater)
+                so this box's height depends only on the list's membership —
+                stable across a session — never on whether *this* click just
+                added or removed a rating. Listing everyone instead of just
+                who's rated is what makes that possible: an unrated member
+                still gets a (hollow) row instead of the row disappearing. */}
+            {!isPersonal && ratingMemberNames.length > 0 && (
+              <div className="modal-ratings-list">
+                {ratingMemberNames.map((name) => {
+                  const value = ratings[name] || 0
+                  return (
+                    <span
+                      key={name}
+                      className={'modal-ratings-member' + (value ? '' : ' modal-ratings-member--empty')}
+                      style={value ? { color: authorColor(name, memberNames, paletteRotation) } : undefined}
+                    >
+                      {name}{' '}
+                      <span className="modal-ratings-member-stars">
+                        {'★'.repeat(value)}{'☆'.repeat(5 - value)}
+                      </span>
+                    </span>
+                  )
+                })}
+              </div>
             )}
           </div>
-        )}
 
-        <div className="modal-ratings">
-          <div className="modal-ratings-header">
-            <span className="modal-ratings-label">Your rating</span>
-            {/* Always mounted, same reasoning as modal-ratings-list below —
-                this used to only render once ratingAverage existed, so the
-                very first click on a never-rated item (0 -> 1 ratings) made
-                it pop into the row from nothing. A placeholder keeps the
-                header's height identical before and after that click. */}
-            <span className="modal-ratings-average">
-              {ratingAverage != null ? (
-                <>
-                  ★ {ratingAverage.toFixed(1)}
-                  <span className="modal-ratings-count">
-                    {' '}· {ratingCount} {ratingCount === 1 ? 'rating' : 'ratings'}
-                  </span>
-                </>
-              ) : (
-                <span className="modal-ratings-count">No ratings yet</span>
+          {!loading && error && <p className="modal-note modal-note--error">{error}</p>}
+
+          {/* While the TMDB fetch is in flight, reserve roughly the same
+              footprint the real overview/facts are about to take instead of
+              just an inline "Loading…" line — everything below (ratings, the
+              notes toggle) would otherwise jump down all at once the moment
+              the fetch resolves, landing wherever the pointer happens to be
+              mid-click. The fact-box count is picked from `isTv`, which is
+              already known from `item.type` — no need to wait on the fetch
+              for that part. */}
+          {loading ? (
+            <>
+              <div className="modal-overview-skeleton" aria-hidden="true">
+                <span className="modal-skeleton-bar" />
+                <span className="modal-skeleton-bar" />
+                <span className="modal-skeleton-bar" />
+                <span className="modal-skeleton-bar modal-skeleton-bar--short" />
+              </div>
+              <div className="modal-facts">
+                {(isTv ? [0, 1, 2] : [0, 1]).map((i) => (
+                  <div className="modal-fact" key={i} aria-hidden="true">
+                    <span className="modal-skeleton-bar modal-skeleton-bar--label" />
+                    <span className="modal-skeleton-bar modal-skeleton-bar--value" />
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              {details?.overview && <p className="modal-overview">{details.overview}</p>}
+
+              {isTv && details && (
+                <div className="modal-facts">
+                  {typeof details.number_of_seasons === 'number' && (
+                    <div className="modal-fact">
+                      <span className="modal-fact-label">Seasons</span>
+                      <span className="modal-fact-value">{details.number_of_seasons}</span>
+                    </div>
+                  )}
+                  {typeof details.number_of_episodes === 'number' && (
+                    <div className="modal-fact">
+                      <span className="modal-fact-label">Episodes</span>
+                      <span className="modal-fact-value">{details.number_of_episodes}</span>
+                    </div>
+                  )}
+                  {details.status && (
+                    <div className="modal-fact">
+                      <span className="modal-fact-label">Airing status</span>
+                      <span className="modal-fact-value">{details.status}</span>
+                    </div>
+                  )}
+                </div>
               )}
-            </span>
-          </div>
-          <div className="modal-rating-stars" role="radiogroup" aria-label="Your rating">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                className={'modal-rating-star' + (n <= myRating ? ' modal-rating-star--filled' : '')}
-                onClick={() => handleRate(n)}
-                aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
-                aria-pressed={n === myRating}
-              >
-                ★
-              </button>
-            ))}
-          </div>
-          {/* Always mounted (one entry per list member, not just per rater)
-              so this box's height depends only on the list's membership —
-              stable across a session — never on whether *this* click just
-              added or removed a rating. Listing everyone instead of just
-              who's rated is what makes that possible: an unrated member
-              still gets a (hollow) row instead of the row disappearing. */}
-          {!isPersonal && ratingMemberNames.length > 0 && (
-            <div className="modal-ratings-list">
-              {ratingMemberNames.map((name) => {
-                const value = ratings[name] || 0
-                return (
-                  <span
-                    key={name}
-                    className={'modal-ratings-member' + (value ? '' : ' modal-ratings-member--empty')}
-                    style={value ? { color: authorColor(name, memberNames, paletteRotation) } : undefined}
-                  >
-                    {name}{' '}
-                    <span className="modal-ratings-member-stars">
-                      {'★'.repeat(value)}{'☆'.repeat(5 - value)}
-                    </span>
-                  </span>
-                )
-              })}
+
+              {!isTv && details && (details.runtime > 0 || details.status) && (
+                <div className="modal-facts">
+                  {details.runtime > 0 && (
+                    <div className="modal-fact">
+                      <span className="modal-fact-label">Runtime</span>
+                      <span className="modal-fact-value">{details.runtime} min</span>
+                    </div>
+                  )}
+                  {details.status && (
+                    <div className="modal-fact">
+                      <span className="modal-fact-label">Status</span>
+                      <span className="modal-fact-value">{details.status}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {!loading && trailer && (
+            <div className="modal-trailer">
+              {trailerOpen ? (
+                <div className="modal-trailer-frame">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
+                    title={trailer.name || 'Trailer'}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="modal-trailer-thumb"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setTrailerOpen(true)
+                  }}
+                  aria-label="Play trailer"
+                >
+                  <img
+                    className="modal-trailer-thumb-img"
+                    src={`https://img.youtube.com/vi/${trailer.key}/hqdefault.jpg`}
+                    alt=""
+                    loading="lazy"
+                  />
+                  <span className="modal-trailer-play">▶</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -643,13 +695,12 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
           style={
             notesPanelRect
               ? {
-                  // Covers the card's full on-screen rect (not just most of
-                  // it) — see toggleNotesPanel for why this is measured off
-                  // the live DOM rect rather than expressed as e.g. 100%.
-                  top: notesPanelRect.top + 'px',
+                  // Only horizontal placement comes from the live rect — see
+                  // toggleNotesPanel for why top/height instead come from
+                  // plain CSS (.modal-notes-panel's own top/height), not a
+                  // scroll-position snapshot.
                   left: notesPanelRect.left + 'px',
                   width: notesPanelRect.width + 'px',
-                  height: notesPanelRect.height + 'px',
                 }
               : undefined
           }
@@ -690,6 +741,7 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
           )}
           {isPersonal ? (
             <textarea
+              ref={notesInputRef}
               className="modal-notes-input"
               placeholder="Add a note for yourself…"
               value={notesDraft}
@@ -715,6 +767,7 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
                 {notesDraft.endsWith('\n') ? '​' : null}
               </div>
               <textarea
+                ref={notesInputRef}
                 className="modal-notes-input modal-notes-input--overlay"
                 placeholder="Add a note or comment for the list…"
                 value={notesDraft}

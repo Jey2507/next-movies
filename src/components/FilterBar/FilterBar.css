@@ -1,8 +1,35 @@
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 28px;
+}
+
 .filter-row {
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 28px;
   flex-wrap: wrap;
+}
+
+.filter-row-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  width: 52px;
+}
+
+.filter-row-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 0 0 0 60px;
 }
 
 .filter-pill {
@@ -42,17 +69,22 @@
 .genre-filter-select {
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
-  background: var(--surface);
+  background: var(--surface-raised);
   color: var(--text-dim);
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 7px 12px;
   cursor: pointer;
+  margin-left: auto;
 }
 
 .genre-filter-select:focus { border-color: var(--gold); }
 
 @media (max-width: 640px) {
+  .filter-bar { padding: 12px 14px; }
   .filter-row { gap: 6px; }
+  .filter-row-label { width: 100%; }
+  .filter-row-divider { margin-left: 0; }
   .filter-pill { font-size: 11px; padding: 6px 11px; }
+  .genre-filter-select { margin-left: 0; width: 100%; }
 }

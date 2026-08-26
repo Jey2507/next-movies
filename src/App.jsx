@@ -466,7 +466,16 @@ export default function App() {
             </div>
           )}
         </div>
-        {isSupabaseConfigured && (
+      </header>
+
+      {!isSupabaseConfigured && (
+        <div className="config-note">
+          Saving to this browser only. Configure supabaseClient.js to sync across devices.
+        </div>
+      )}
+
+      {isSupabaseConfigured && (
+        <>
           <ListSwitcher
             lists={lists}
             listsError={listsError}
@@ -480,13 +489,8 @@ export default function App() {
             onRequestLeave={setPendingLeaveList}
             leaveError={leaveError}
           />
-        )}
-      </header>
-
-      {!isSupabaseConfigured && (
-        <div className="config-note">
-          Saving to this browser only. Configure supabaseClient.js to sync across devices.
-        </div>
+          <div className="section-tear" aria-hidden="true" />
+        </>
       )}
 
       <SearchBox

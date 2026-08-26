@@ -4,9 +4,12 @@
   background: rgba(6, 8, 13, 0.72);
   backdrop-filter: blur(2px);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
+  /* Full-screen page on every device, not just phone: no gap around the
+     card for it to be centered within, so it always fills the viewport
+     edge-to-edge instead of floating as a dialog. */
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
   z-index: 100;
   animation: modal-backdrop-in 160ms ease;
 }
@@ -19,8 +22,12 @@
 .modal-card {
   position: relative;
   width: 100%;
-  max-width: 460px;
-  max-height: calc(100vh - 48px);
+  max-width: 100%;
+  /* Full-screen page on every device: fills the whole viewport height
+     instead of floating as a card with margin above/below. */
+  max-height: 100vh;
+  max-height: 100dvh;
+  border-radius: 0;
   overflow-y: auto;
   /* Always reserves the scrollbar's own width, whether or not the content
      actually overflows yet — without this, the moment content grows past
@@ -33,9 +40,17 @@
   /* Thin + muted instead of the OS default — Firefox. */
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  /* Transparent, not a solid fill — modal-card still spans the full
+     viewport (and still scrolls, still fills the full height) so this stays
+     a page you can scroll, not the old small centered dialog, but the
+     surrounding area (outside modal-content's card, on wide screens) should
+     look like the dim/blurred backdrop the old modal had, not a flat
+     opaque block — modal-backdrop's rgba + blur behind this now does the
+     job again since nothing here paints over it. No side/bottom border
+     either (see the old .modal-card--movie/series/anime rule below, now
+     just a top accent) — a border running along the actual viewport edges
+     read as a harsh frame around the whole screen. */
+  background: transparent;
   padding: 24px;
   padding-bottom: 0;
   animation: modal-card-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -50,6 +65,12 @@
   border-radius: 4px;
 }
 .modal-card::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
+
+/* While the notes/comments panel is open (see toggleNotesPanel in
+   DetailModal.jsx), the info page underneath shouldn't scroll — the panel
+   is position: fixed, sized off modal-content's rect, so it doesn't itself
+   block wheel/touch input from still scrolling the card behind it. */
+.modal-card--notes-open { overflow: hidden; }
 
 @keyframes modal-card-in {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
@@ -80,8 +101,39 @@
 
 .modal-close:hover { color: var(--text); border-color: var(--gold); }
 
+/* Full-screen page on every device: modal-card itself fills the whole
+   viewport (transparent — see modal-card's own background — so the dim/
+   blurred backdrop shows through around this), but this one shared
+   container is where all the actual info (hero, overview, facts, trailer,
+   ratings, and now modal-close) lives, as a single soft card sitting on top
+   of that page — instead of the page bg showing through around a loose
+   scatter of separately-boxed sections. modal-zoom-overlay/notes-panel stay
+   outside it since they're already sized off the full card (or the
+   viewport), not this column. position: relative so modal-close anchors to
+   this card's own corner instead of the full viewport's. Same background
+   color as modal-card/the rest of the site (not a lighter --surface tone) —
+   the "soft" look comes from the rounded corners + shadow lifting it off
+   the page, not a color swap. */
+.modal-content {
+  position: relative;
+  width: 100%;
+  /* Narrower than the main page's own content column (.queue-app's 1040px
+     in App.css) — full page width read as too spread out, with a lot of
+     dead space around the hero/rating area. */
+  max-width: 900px;
+  margin: 0 auto 24px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(4, 5, 8, 0.4);
+}
+
 .modal-hero {
   display: flex;
+  /* Lets the poster + title column drop to separate lines instead of
+     squeezing if a very long title ever needs more room than the row has. */
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 16px;
   padding-right: 28px;
@@ -89,11 +141,15 @@
 
 /* Reserves the poster's layout space regardless of the image's own
    positioning, so switching the image to position: fixed for the zoom
-   animation never reflows the surrounding title/meta info. */
+   animation never reflows the surrounding title/meta info. min-height (not
+   height) plus the default align-items: stretch on .modal-hero lets it grow
+   to match whichever sibling — usually modal-ratings — ends up tallest, so
+   the poster's bottom edge touches the overview text below at the same gap
+   modal-ratings does, instead of stopping short and leaving dead space. */
 .modal-poster-slot {
   position: relative;
   width: 96px;
-  height: 140px;
+  min-height: 140px;
   flex-shrink: 0;
   border-radius: 8px;
 }
@@ -224,12 +280,21 @@
 /* Hints there's already something written in it, without opening it. */
 .modal-notes-toggle--filled { color: var(--gold); border-color: var(--gold-dim); }
 
-/* The notes/comments panel itself. position: fixed and sized off the card's
-   own on-screen rect (see toggleNotesPanel in DetailModal.jsx) so it covers
-   the card's actual visible area (full width and height) — not whatever its
-   scrollable content height happens to be — then rises up to cover it. */
+/* The notes/comments panel itself. position: fixed, always spanning the
+   full viewport height (top/height below) regardless of how far the info
+   page underneath happens to be scrolled — only its left/width come from
+   modal-content's live rect (see toggleNotesPanel in DetailModal.jsx), to
+   line up with the card horizontally. Sizing its height off the *page's*
+   rect instead used to place the panel using wherever the page's scroll
+   position happened to be at the moment it was opened, which could plant
+   most of a long note above or below the visible viewport — always fully
+   on-screen here means its own scrolling is never blocked from reaching
+   the top of a note. */
 .modal-notes-panel {
   position: fixed;
+  top: 24px;
+  height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
   z-index: 18;
   display: flex;
   flex-direction: column;
@@ -248,11 +313,12 @@
   pointer-events: none;
   overflow-y: auto;
   /* Before it's ever opened there's no computed rect yet (see
-     toggleNotesPanel), so it has no inline top/left/width/height and falls
-     back to its static in-flow position (right after the facts section) —
-     the transform above alone can then leave it overlapping content instead
-     of fully off-screen. opacity: 0 hides it regardless of where that
-     fallback position lands, independent of the slide animation on
+     toggleNotesPanel), so it has no inline left/width and falls back to its
+     static in-flow horizontal position (full width, right after the facts
+     section) — top/height are already correct from the rules above, but the
+     transform above alone can still leave it overlapping content sideways
+     instead of fully off-screen. opacity: 0 hides it regardless of where
+     that fallback position lands, independent of the slide animation on
      transform. Delayed by the transform's own duration so *closing* stays
      visible for the whole slide-down and only snaps invisible once it's
      back off-screen — the --open rule below cancels that delay so becoming
@@ -557,15 +623,12 @@
   border: none;
 }
 
+/* Sits right after the hero, directly above the overview — no box/background
+   of its own (it used to be a raised panel pinned in the hero corner, which
+   read as a mismatched floating chip); now it's plain text flowing with the
+   rest of the page, the same way modal-overview is. */
 .modal-ratings {
-  background: var(--surface-raised);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  /* Top margin, not just bottom — this can sit directly under modal-overview
-     or modal-facts (neither of which has its own bottom margin), and
-     without one of its own it reads as glued to whatever's above it. */
-  margin: 16px 0;
+  margin: 0 0 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -574,8 +637,7 @@
 .modal-ratings-header {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
 }
 
 .modal-ratings-label {
@@ -653,12 +715,11 @@
    more room instead of sitting at the same width used on tablet. */
 @media (min-width: 860px) {
   .modal-card {
-    max-width: 640px;
-    max-height: calc(100vh - 96px);
     padding: 32px;
   }
+  .modal-content { padding: 32px; border-radius: 24px; }
   .modal-hero { gap: 22px; margin-bottom: 20px; }
-  .modal-poster-slot { width: 150px; height: 220px; }
+  .modal-poster-slot { width: 150px; min-height: 220px; }
   .modal-title { font-size: 36px; }
   .modal-overview { font-size: 15px; margin-bottom: 20px; }
   .modal-facts { gap: 12px; }
@@ -668,20 +729,13 @@
 /* Phone: a fluid-width poster with a fixed height gets cropped and stretches
    oddly as the viewport changes. Keep the tablet's side-by-side layout but
    shrink it, and let the poster's own aspect ratio (not the viewport) decide
-   its height so it stays sharp and proportioned instead of "rubbery". */
+   its height so it stays sharp and proportioned instead of "rubbery". The
+   full-screen-page treatment itself (edge-to-edge, no rounded corners) is
+   the default for every device now — see .modal-backdrop/.modal-card above —
+   so this block only keeps the sizing that's actually phone-specific. */
 @media (max-width: 520px) {
-  /* Edge-to-edge on phones: no backdrop padding/rounded corners left to eat
-     into the width, so the card actually spans the full screen width
-     instead of just being "wide". */
-  .modal-backdrop { padding: 0; align-items: stretch; }
-  .modal-card {
-    width: 100%;
-    max-width: 100%;
-    padding: 16px;
-    max-height: 100vh;
-    max-height: 100dvh;
-    border-radius: 0;
-  }
+  .modal-card { padding: 16px; }
+  .modal-content { padding: 16px; border-radius: 14px; }
   .modal-hero { gap: 12px; padding-right: 26px; }
   .modal-poster-slot {
     width: 92px;

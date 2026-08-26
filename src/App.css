@@ -146,6 +146,32 @@ body {
   margin-bottom: 20px;
 }
 
+/* Ticket-tear divider — sets the "your lists" block apart from the
+   search/add-manually block above it and the filters below, in the same
+   perforated-edge language as the ticket stubs (see .ticket-perf in
+   TicketCard.css) instead of a plain margin gap. */
+.section-tear {
+  position: relative;
+  height: 0;
+  margin: 20px 0;
+  border-top: 2px dashed var(--line);
+}
+
+.section-tear::before,
+.section-tear::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bg);
+  transform: translateY(-50%);
+}
+
+.section-tear::before { left: -9px; }
+.section-tear::after { right: -9px; }
+
 .empty-state {
   border: 1px dashed var(--line);
   border-radius: 10px;

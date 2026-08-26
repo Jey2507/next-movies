@@ -3,7 +3,29 @@
   margin-bottom: 16px;
 }
 
+.search-input-wrap {
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  z-index: 2;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
 .search-input {
+  /* Glow tokens — tweak these to swap the search bar's highlight (color/
+     softness/strength) without touching the box-shadow syntax below. */
+  --search-glow-color: 232, 179, 76;
+  --search-glow-blur: 8px;
+  --search-glow-alpha: 0.22;
+
   width: 100%;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -11,12 +33,14 @@
   font-family: 'Inter', sans-serif;
   font-size: 15px;
   border-radius: 8px;
-  padding: 13px 16px;
+  padding: 13px 16px 13px 40px;
   outline: none;
+  box-shadow: 0 0 var(--search-glow-blur) 0 rgba(var(--search-glow-color), var(--search-glow-alpha));
 }
 
 .search-input::placeholder { color: var(--text-dim); }
 .search-input:focus { border-color: var(--gold); }
+.search-input-wrap:focus-within .search-icon { color: var(--gold); }
 
 .search-dropdown {
   position: absolute;

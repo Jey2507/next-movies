@@ -15,8 +15,9 @@ export default function FilterBar({
   genres,
 }) {
   return (
-    <>
+    <div className="filter-bar">
       <div className="filter-row">
+        <span className="filter-row-label">Type</span>
         <button
           className={'filter-pill' + (typeFilter === 'all' ? ' filter-pill--active' : '')}
           onClick={() => onTypeFilterChange('all')}
@@ -34,7 +35,10 @@ export default function FilterBar({
         ))}
       </div>
 
+      <div className="filter-row-divider" aria-hidden="true" />
+
       <div className="filter-row">
+        <span className="filter-row-label">Status</span>
         <button
           className={'filter-pill' + (statusFilter === 'all' ? ' filter-pill--active' : '')}
           onClick={() => onStatusFilterChange('all')}
@@ -63,6 +67,6 @@ export default function FilterBar({
           </select>
         )}
       </div>
-    </>
+    </div>
   )
 }

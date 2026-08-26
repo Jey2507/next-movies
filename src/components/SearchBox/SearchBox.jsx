@@ -17,13 +17,19 @@ export default function SearchBox({
 }) {
   return (
     <div className="search-box" ref={boxRef}>
-      <input
-        className="search-input"
-        placeholder="Search movies, series or anime..."
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
-        onFocus={onFocus}
-      />
+      <div className="search-input-wrap">
+        <svg className="search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+          <line x1="16.65" y1="16.65" x2="21" y2="21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <input
+          className="search-input"
+          placeholder="Search movies, series or anime..."
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onFocus={onFocus}
+        />
+      </div>
       {showResults && (query.trim() || searching) && (
         <div className="search-dropdown">
           {searching && (
