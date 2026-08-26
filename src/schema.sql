@@ -93,6 +93,22 @@ alter table list_members alter column user_id set default auth.uid();
 
 alter table items add column if not exists list_id uuid references lists(id) on delete cascade;
 
+-- Free-text notes on an item. One field per item, not a threaded/per-user
+-- comment log — on a personal list it's just your own notes; on a shared
+-- list every member reads and edits the same field (see DetailModal.jsx),
+-- so it doubles as a shared comment box. Covered by the existing
+-- items_select/items_update RLS policies below, same as every other column.
+alter table items add column if not exists notes text;
+-- Who last wrote the current `notes` value, and when — shown as "Last
+-- edited by ..." on shared lists so co-members can tell who left a comment.
+-- Stored as plain text (the writer's display_name at save time, sent by the
+-- client — see App.jsx's updateNotes), not a profiles(id) foreign key +
+-- join: `items` rows already arrive over realtime as raw column values with
+-- no joins (see the live-sync effect in App.jsx), so a joined name would
+-- never reach other members' screens without an extra round trip.
+alter table items add column if not exists notes_updated_by_name text;
+alter table items add column if not exists notes_updated_at timestamptz;
+
 -- =========================================================
 -- STEP 2: invite code generation (trigger, on lists insert)
 -- =========================================================

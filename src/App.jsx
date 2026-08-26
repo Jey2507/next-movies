@@ -137,7 +137,10 @@ export default function App() {
   const boxRef = useRef(null)
   const ticketRefs = useRef(new Map())
   const prevRectsRef = useRef(null)
-  const [activeItem, setActiveItem] = useState(null)
+  // Stores just the id, not the item itself, so the modal always shows the
+  // live item from `items` below — including notes edits that arrive via
+  // realtime from another member of a shared list while it's open.
+  const [activeItemId, setActiveItemId] = useState(null)
   const [pendingDelete, setPendingDelete] = useState(null)
 
   // Load from Supabase on mount, scoped to the active list (falls back to
@@ -310,6 +313,16 @@ export default function App() {
     if (isSupabaseConfigured) await supabase.from('items').update({ status }).eq('id', id)
   }
 
+  // notes_updated_by_name/_at record who last wrote the shared note and
+  // when, so DetailModal can show "Last edited by ..." on shared lists (see
+  // schema.sql). Stamped on every save, including on a personal list, even
+  // though it's not shown there — harmless, and one code path either way.
+  async function updateNotes(id, notes) {
+    const stamp = { notes, notes_updated_by_name: displayName || null, notes_updated_at: new Date().toISOString() }
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...stamp } : i)))
+    if (isSupabaseConfigured) await supabase.from('items').update(stamp).eq('id', id)
+  }
+
   function captureRects() {
     const map = new Map()
     ticketRefs.current.forEach((el, itemId) => {
@@ -337,6 +350,8 @@ export default function App() {
       await supabase.from('items').update({ position: a.position }).eq('id', b.id)
     }
   }
+
+  const activeItem = items.find((i) => i.id === activeItemId) || null
 
   const genres = Array.from(new Set(items.map((i) => i.genre).filter(Boolean))).sort()
 
@@ -575,11 +590,11 @@ export default function App() {
                 if (el) ticketRefs.current.set(item.id, el)
                 else ticketRefs.current.delete(item.id)
               }}
-              onClick={() => setActiveItem(item)}
+              onClick={() => setActiveItemId(item.id)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  setActiveItem(item)
+                  setActiveItemId(item.id)
                 }
               }}
               role="button"
@@ -656,9 +671,11 @@ export default function App() {
 
       <DetailModal
         item={activeItem}
-        onClose={() => setActiveItem(null)}
+        onClose={() => setActiveItemId(null)}
         apiKey={TMDB_API_KEY}
         imgBase={TMDB_IMG}
+        isPersonal={!isSupabaseConfigured || !!activeList?.is_personal}
+        onSaveNotes={updateNotes}
       />
 
       <ConfirmDeleteModal
