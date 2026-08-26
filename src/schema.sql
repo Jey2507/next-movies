@@ -115,6 +115,19 @@ alter table items add column if not exists notes_updated_at timestamptz;
 -- rebuilt client-side on every save (see src/noteSegments.js); `notes`
 -- itself remains the single source of truth if this ever falls out of sync.
 alter table items add column if not exists notes_segments jsonb;
+-- Optimistic-concurrency guard for shared-note saves: incremented by 1 on
+-- every save. Two people can each flush an edit before either has heard
+-- about the other's save via realtime — a plain UPDATE would then have
+-- whichever write lands second at the database silently overwrite the
+-- first one's text. App.jsx's updateNotes instead makes the write
+-- conditional on `notes_rev` still matching what it started from; if
+-- Postgres reports no row matched (someone else's save already bumped it),
+-- it re-reads the row, folds its own edit onto that newer text (see
+-- rebaseText in src/noteSegments.js) instead of dropping it, and retries.
+alter table items add column if not exists notes_rev integer;
+update items set notes_rev = 0 where notes_rev is null;
+alter table items alter column notes_rev set default 0;
+alter table items alter column notes_rev set not null;
 
 -- =========================================================
 -- STEP 2: invite code generation (trigger, on lists insert)

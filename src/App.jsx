@@ -8,7 +8,7 @@ import ConfirmDeleteModal from './components/ConfirmDeleteModal'
 import ConfirmModal from './components/ConfirmModal'
 import AuthScreen from './components/AuthScreen'
 import ListSwitcher from './components/ListSwitcher'
-import { diffNoteSegments, committedNoteSegments } from './noteSegments'
+import { diffNoteSegments, committedNoteSegments, rebaseText } from './noteSegments'
 
 // Get a free key at https://www.themoviedb.org/settings/api and paste it below.
 const TMDB_API_KEY = '4f5ec21ec83179db03e267a97d8f594d'
@@ -321,12 +321,62 @@ export default function App() {
   // notes_segments re-attributes just the part of the text that actually
   // changed to this save's author, instead of recoloring the whole note —
   // see noteSegments.js.
+  //
+  // On a shared list, two people can each flush an edit close enough
+  // together that neither has heard about the other's save via realtime
+  // yet — DetailModal's own rebase (see its notes-sync effect) only helps
+  // once a client *knows* about the other edit. As a last resort against
+  // that race actually landing at the database, the write itself is
+  // conditional on notes_rev (see schema.sql): if Postgres reports no row
+  // matched, someone else's save already won, so this re-reads the actual
+  // current row, folds this save's own edit onto *that* instead of
+  // clobbering it, and retries — bounded, since each retry only continues
+  // if it lost to yet another save in between.
   async function updateNotes(id, notes) {
-    const prevItem = items.find((i) => i.id === id)
-    const notes_segments = diffNoteSegments(committedNoteSegments(prevItem), notes, displayName || null)
-    const stamp = { notes, notes_segments, notes_updated_by_name: displayName || null, notes_updated_at: new Date().toISOString() }
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...stamp } : i)))
-    if (isSupabaseConfigured) await supabase.from('items').update(stamp).eq('id', id)
+    if (!isSupabaseConfigured) {
+      const prevItem = items.find((i) => i.id === id)
+      const notes_segments = diffNoteSegments(committedNoteSegments(prevItem), notes, displayName || null)
+      const stamp = { notes, notes_segments, notes_updated_by_name: displayName || null, notes_updated_at: new Date().toISOString() }
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...stamp } : i)))
+      return
+    }
+
+    let base = items.find((i) => i.id === id)
+    let pendingNotes = notes
+    const maxAttempts = 5
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const notes_segments = diffNoteSegments(committedNoteSegments(base), pendingNotes, displayName || null)
+      const stamp = {
+        notes: pendingNotes,
+        notes_segments,
+        notes_rev: (base?.notes_rev || 0) + 1,
+        notes_updated_by_name: displayName || null,
+        notes_updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase
+        .from('items')
+        .update(stamp)
+        .eq('id', id)
+        .eq('notes_rev', base?.notes_rev || 0)
+        .select()
+      if (error) {
+        console.error('updateNotes failed', error)
+        return
+      }
+      if (data && data.length > 0) {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...stamp } : i)))
+        return
+      }
+
+      // notes_rev didn't match: someone else's save landed first. Re-read
+      // the row they actually wrote and fold this edit onto it, then retry.
+      const { data: latestRows, error: refetchError } = await supabase.from('items').select('*').eq('id', id)
+      if (refetchError || !latestRows?.length) return // deleted or unreadable — nothing to save onto
+      const latest = latestRows[0]
+      pendingNotes = rebaseText(base?.notes || '', pendingNotes, latest.notes || '')
+      base = latest
+    }
   }
 
   function captureRects() {
