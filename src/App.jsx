@@ -322,26 +322,35 @@ export default function App() {
   // changed to this save's author, instead of recoloring the whole note —
   // see noteSegments.js.
   //
+  // `base` is the note DetailModal's edit actually started from — passed in
+  // explicitly rather than read from `items` here, because `items` can
+  // already have moved on to someone else's save (via the live-sync
+  // subscription) *while this client was still typing its own edit*, with
+  // no way for this function to tell that apart from "nothing changed
+  // since I last saved". Trusting `items` in that case would make the
+  // notes_rev check below pass against the *new* row while `notes` was
+  // never actually built from it, silently discarding the other save
+  // instead of merging with it.
+  //
   // On a shared list, two people can each flush an edit close enough
   // together that neither has heard about the other's save via realtime
-  // yet — DetailModal's own rebase (see its notes-sync effect) only helps
-  // once a client *knows* about the other edit. As a last resort against
-  // that race actually landing at the database, the write itself is
-  // conditional on notes_rev (see schema.sql): if Postgres reports no row
-  // matched, someone else's save already won, so this re-reads the actual
-  // current row, folds this save's own edit onto *that* instead of
-  // clobbering it, and retries — bounded, since each retry only continues
-  // if it lost to yet another save in between.
-  async function updateNotes(id, notes) {
+  // yet. As a last resort against that race actually landing at the
+  // database, the write itself is conditional on notes_rev (see
+  // schema.sql): if Postgres reports no row matched, someone else's save
+  // already won, so this re-reads the actual current row, folds this
+  // save's own edit onto *that* instead of clobbering it, and retries —
+  // bounded, since each retry only continues if it lost to yet another
+  // save in between.
+  async function updateNotes(id, notes, base) {
     if (!isSupabaseConfigured) {
-      const prevItem = items.find((i) => i.id === id)
+      const prevItem = base || items.find((i) => i.id === id)
       const notes_segments = diffNoteSegments(committedNoteSegments(prevItem), notes, displayName || null)
       const stamp = { notes, notes_segments, notes_updated_by_name: displayName || null, notes_updated_at: new Date().toISOString() }
       setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...stamp } : i)))
       return
     }
 
-    let base = items.find((i) => i.id === id)
+    base = base || items.find((i) => i.id === id)
     let pendingNotes = notes
     const maxAttempts = 5
     for (let attempt = 0; attempt < maxAttempts; attempt++) {

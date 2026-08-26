@@ -70,3 +70,7 @@ code,
   border-radius: 4px;
   color: var(--text-h);
 }
+
+button, a, li, img {
+  -webkit-tap-highlight-color: transparent;
+}

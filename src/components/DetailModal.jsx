@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './DetailModal.css'
-import { diffNoteSegments, committedNoteSegments, rebaseText } from '../noteSegments'
+import { diffNoteSegments, committedNoteSegments } from '../noteSegments'
 
 const NOTES_SAVE_DELAY = 600
 
@@ -177,11 +177,22 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
   // during render when a different item opens, instead of in an effect, to
   // avoid an extra render showing the previous item's notes for a frame.
   const [notesDraft, setNotesDraft] = useState(item?.notes || '')
-  // What this client last saw as the *committed* note (i.e. item.notes),
-  // kept separate from notesDraft so a later remote change can be told
-  // apart from this client's own edit-in-progress — see the rebase effect
-  // below.
-  const lastKnownNotesRef = useRef(item?.notes || '')
+  // The committed note this client's current edit (if any) actually started
+  // from — { notes, notes_segments, notes_rev }. Deliberately *not* kept in
+  // step with item while there's an unflushed local edit (see the sync
+  // effect below): once someone else's save lands mid-edit, item.notes
+  // moves on, but this client's notesDraft is still built on the old text,
+  // so this baseline has to stay put too — it's what lets the eventual
+  // flush correctly separate "what I actually typed" from "what changed out
+  // from under me" instead of one clobbering the other (see App.jsx's
+  // updateNotes, which is where the actual merge happens). State, not a
+  // ref, since it's read during render for the live color preview below.
+  const [noteBase, setNoteBase] = useState({
+    notes: item?.notes || '',
+    notes_segments: item?.notes_segments,
+    notes_updated_by_name: item?.notes_updated_by_name,
+    notes_rev: item?.notes_rev || 0,
+  })
   const [notesForItem, setNotesForItem] = useState(item?.id ?? null)
   // The notes panel itself: hidden behind a small toggle icon at the bottom
   // of the card, sliding down over the rest of the modal when opened (see
@@ -192,9 +203,12 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
     setNotesForItem(item?.id ?? null)
     setNotesDraft(item?.notes || '')
     setNotesOpen(false)
-    // lastKnownNotesRef itself is re-synced by the effect below, which also
-    // runs on this same item?.id change (refs can't be written during
-    // render — see react-hooks/refs).
+    setNoteBase({
+      notes: item?.notes || '',
+      notes_segments: item?.notes_segments,
+      notes_updated_by_name: item?.notes_updated_by_name,
+      notes_rev: item?.notes_rev || 0,
+    })
   }
   const notesSaveTimer = useRef(null)
   // The one still-unsent edit, as { id, value } — the *id it was made for*,
@@ -214,14 +228,20 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
     const pending = pendingNotesRef.current
     if (!pending) return
     pendingNotesRef.current = null
-    if (onSaveNotes) onSaveNotes(pending.id, pending.value)
+    // Passes along the exact note this edit started from, not whatever the
+    // item looks like *now* — see noteBase and App.jsx's updateNotes.
+    if (onSaveNotes) onSaveNotes(pending.id, pending.value, pending.base)
   }
 
   function handleNotesChange(e) {
     const value = e.target.value
     const id = item.id
     setNotesDraft(value)
-    pendingNotesRef.current = { id, value }
+    // base always comes from noteBase, not the previous pendingNotesRef (if
+    // any) — it only ever changes once this whole edit is done (see the
+    // sync effect below), so every keystroke in one continuous editing
+    // session keeps pointing at the same pre-edit baseline.
+    pendingNotesRef.current = { id, value, base: noteBase }
     if (notesSaveTimer.current) clearTimeout(notesSaveTimer.current)
     notesSaveTimer.current = setTimeout(flushPendingNotes, NOTES_SAVE_DELAY)
   }
@@ -237,28 +257,30 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
 
   // Pick up notes changes that arrive from elsewhere (another shared-list
   // member editing the same item, via the live-sync in App.jsx) while it's
-  // open. With no local edit in flight this is just "show the new text".
-  // With one in flight, naively ignoring the remote change (like this used
-  // to) means the next flush overwrites it outright — that's the
-  // "colors/edits clobber each other" failure two people typing at once
-  // would hit. Instead, rebase: re-apply only what *this* client actually
-  // typed (relative to lastKnownNotesRef, its own pre-edit baseline) onto
-  // the freshly-arrived text, and let the already-scheduled debounced save
-  // send that merged result instead of the stale draft.
+  // open — but only while there's no unsent local edit. Splicing a remote
+  // change straight into the textarea *while* someone's still actively
+  // typing into it turns out to be exactly the kind of thing it sounds
+  // like: fighting a focused, controlled input for its own value mid-
+  // keystroke is unreliable, and (worse) once App.jsx's items state has
+  // already moved on to the remote text, computing "what did I actually
+  // type" against it here would itself be wrong — see noteBase.
+  //
+  // So: leave a local edit-in-progress and its baseline completely alone.
+  // The merge happens once, safely, at flush time — see App.jsx's
+  // updateNotes, which is handed noteBase's frozen snapshot precisely so it
+  // can tell "what I typed" apart from "what changed underneath me" even
+  // though item (and this component) never saw the remote edit while it
+  // was still being typed.
   useEffect(() => {
-    const remoteNotes = item?.notes || ''
-    if (pendingNotesRef.current) {
-      if (remoteNotes !== lastKnownNotesRef.current) {
-        const merged = rebaseText(lastKnownNotesRef.current, notesDraft, remoteNotes)
-        setNotesDraft(merged)
-        pendingNotesRef.current = { id: item.id, value: merged }
-      }
-    } else {
-      setNotesDraft(remoteNotes)
-    }
-    lastKnownNotesRef.current = remoteNotes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item?.notes, item?.id])
+    if (pendingNotesRef.current) return
+    setNotesDraft(item?.notes || '')
+    setNoteBase({
+      notes: item?.notes || '',
+      notes_segments: item?.notes_segments,
+      notes_updated_by_name: item?.notes_updated_by_name,
+      notes_rev: item?.notes_rev || 0,
+    })
+  }, [item?.notes, item?.notes_segments, item?.notes_updated_by_name, item?.notes_rev, item?.id])
 
   // Flush a pending debounced edit as soon as the item it belongs to is no
   // longer the open one — covers both switching items and closing the
@@ -337,11 +359,13 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
   const poster = item.poster || (details?.poster_path ? imgBase + details.poster_path : null)
   const paletteRotation = paletteRotationFor(listId)
   const noteAuthorColor = !isPersonal ? authorColor(item.notes_updated_by_name, memberNames, paletteRotation) : null
-  // Re-diffed on every render against whatever's currently committed, so
-  // the still-unsaved text in notesDraft is already colored by who's typing
-  // it — not just the last flushed save (see noteSegments.js).
+  // Re-diffed on every render against this edit's own frozen baseline (see
+  // noteBase — *not* item, which may have already moved on to someone
+  // else's save while this one is still being typed), so the still-unsaved
+  // text in notesDraft is already colored by who's typing it, without
+  // flickering if a remote change lands mid-edit.
   const noteSegments = !isPersonal
-    ? diffNoteSegments(committedNoteSegments(item), notesDraft, viewerName || null)
+    ? diffNoteSegments(committedNoteSegments(noteBase), notesDraft, viewerName || null)
     : null
 
   return (
