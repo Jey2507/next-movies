@@ -1,0 +1,207 @@
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 8, 13, 0.72);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 200;
+  animation: settings-backdrop-in 160ms ease;
+}
+
+@keyframes settings-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.settings-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--gold);
+  border-radius: 14px;
+  padding: 22px;
+  animation: settings-card-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes settings-card-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.settings-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  margin: 0 0 18px;
+}
+
+.settings-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+/* Rounded-square, not a circle — matches the ticket/poster corner radius
+   used everywhere else (see .ticket in TicketCard.css and .account-avatar
+   in App.css) instead of the generic-app circular-avatar look. */
+.settings-avatar-btn {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.settings-avatar-btn:hover { border-color: var(--gold); }
+
+.settings-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.settings-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 28px;
+  color: var(--gold);
+  background: var(--gold-dim);
+}
+
+.settings-avatar-edit {
+  position: absolute;
+  inset: auto 0 0 0;
+  background: rgba(6, 8, 13, 0.72);
+  color: #ffffff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.settings-avatar-input {
+  display: none;
+}
+
+.settings-avatar-remove {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.settings-avatar-remove:hover { color: var(--crimson); }
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.settings-input {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  outline: none;
+  margin-bottom: 8px;
+}
+
+.settings-input:focus { border-color: var(--gold); }
+
+.settings-error {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--crimson);
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.settings-actions-right {
+  display: flex;
+  gap: 10px;
+}
+
+.settings-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  border-radius: 8px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+}
+
+.settings-btn--cancel {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.settings-btn--cancel:hover { border-color: var(--text-dim); }
+
+.settings-btn--save {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #201705;
+}
+
+.settings-btn--save:hover { filter: brightness(1.05); }
+.settings-btn--save:disabled { opacity: 0.6; cursor: default; }
+
+.settings-btn--danger {
+  background: none;
+  border-color: var(--crimson-dim);
+  color: var(--crimson);
+}
+
+.settings-btn--danger:hover {
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: #ffffff;
+}
+
+@media (max-width: 520px) {
+  .settings-backdrop { padding: 16px; }
+  .settings-card { padding: 18px; }
+  .settings-actions { flex-wrap: wrap; }
+}

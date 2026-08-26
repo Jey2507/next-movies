@@ -21,6 +21,16 @@ create table if not exists profiles (
   created_at timestamptz not null default now()
 );
 
+-- Avatar image, written by the Settings modal (see Settings.jsx +
+-- useProfile.js). Deliberately not on auth.users' user_metadata like
+-- display_name is — user_metadata gets embedded in every JWT, and an image
+-- data URI there would bloat every request. Stored here as a small
+-- (client-side downscaled/compressed, see Settings.jsx's
+-- fileToAvatarDataUrl) data URI or, later, a plain URL — either way it's
+-- just text to Postgres. Covered by the existing profiles_update_self
+-- policy below, same as display_name.
+alter table profiles add column if not exists avatar_url text;
+
 create table if not exists lists (
   id uuid primary key default gen_random_uuid(),
   name text,

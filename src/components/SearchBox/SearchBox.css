@@ -1,5 +1,12 @@
+/* Sticky so the search field stays reachable while scrolling through a
+   long ticket grid — pinned to the viewport's top edge once scrolled past
+   its normal position, instead of scrolling away with the rest of the
+   page. (Also still the positioned ancestor .search-dropdown anchors to —
+   sticky creates a containing block the same way relative does.) */
 .search-box {
-  position: relative;
+  position: sticky;
+  top: 12px;
+  z-index: 15;
   margin-bottom: 16px;
 }
 

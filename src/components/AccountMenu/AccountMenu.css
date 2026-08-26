@@ -1,0 +1,406 @@
+/* Sword account control — see AccountMenu.jsx for the interaction model
+   and the "pinned tip, rising hilt" positioning trick. One shared glow
+   color (electric cyan) ties the pommel gem, guard gem, blade energy
+   line, and tip spark together as one enchanted weapon. */
+.account-menu {
+  position: absolute;
+  /* Flush with the card's own 16px padding edge — was nudged in to 56px,
+     then 160px, then 130px to clear .profile-badge (a fixed 138px-wide
+     square in the header above this card), but that badge is temporarily
+     commented out in App.jsx, so back to the original edge position. */
+  right: 16px;
+  bottom: calc(100% - 12px); /* blade tip is driven 12px into the card */
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  filter: drop-shadow(0 6px 12px rgba(6, 8, 13, 0.55));
+}
+
+/* ---------- Hilt (pommel + grip + guard) — always visible ---------- */
+
+.sword-hilt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+
+.sword-pommel {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 32% 28%, #fff3d0, var(--gold) 45%, #7c5714 100%);
+  box-shadow: 0 3px 6px rgba(6, 8, 13, 0.45), inset 0 0 4px rgba(255, 255, 255, 0.55);
+}
+
+.sword-pommel-gem {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #eafffe, #52e4ff 55%, #0f7fa8 100%);
+  box-shadow: 0 0 6px 1px rgba(82, 228, 255, 0.85), 0 0 2px rgba(255, 255, 255, 0.9);
+  animation: sword-gem-pulse 2.6s ease-in-out infinite;
+}
+
+/* Flat wine-red wrap (no gradient/texture — just the color), cinched by a
+   wavy carved edge instead of a plain rectangle. No name label anymore —
+   see AccountMenu.jsx. */
+.sword-grip {
+  position: relative;
+  width: 40px; /* the blade below is sized to match this exactly */
+  height: 48px;
+  margin-top: -4px; /* nests into the pommel's bottom curve */
+  background: #7c0f24;
+  box-shadow: inset 0 0 7px rgba(0, 0, 0, 0.5), 0 2px 4px rgba(6, 8, 13, 0.4);
+  /* Wavy/twisted-cord silhouette instead of a flat rectangle — narrows in
+     at both ends (where it meets the guard and pommel) and undulates
+     along both sides in between. Percentages, so the same shape holds at
+     the mobile size too. */
+  clip-path: polygon(
+    15% 0%, 85% 0%,
+    100% 12.5%, 84% 25%, 100% 37.5%, 84% 50%, 100% 62.5%, 84% 75%, 100% 87.5%, 85% 100%,
+    15% 100%,
+    0% 87.5%, 16% 75%, 0% 62.5%, 16% 50%, 0% 37.5%, 16% 25%, 0% 12.5%
+  );
+}
+
+/* Thin gold wire-wrap rings crossing the grip, like a bound handle. Clipped
+   to the same wavy silhouette as the grip itself (they're children of it),
+   so they read as part of one carved piece rather than a rectangle
+   poking past a wavy edge. */
+.sword-grip-band {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 4px;
+  background: linear-gradient(180deg, #f6d78a, var(--gold) 60%, #8a611c);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.sword-grip-band--top { top: 9px; }
+.sword-grip-band--bottom { bottom: 9px; }
+
+/* Winged crossguard — the widest piece of the whole sword, on purpose:
+   it's what the blade and grip both sit inside the silhouette of. Sized
+   to exactly the bar's own height (not the wings') so the grip above and
+   the blade below butt straight up against the bar with zero gap — the
+   wings are absolutely positioned and allowed to overflow this box
+   (no overflow: hidden here), flaring out above/below it purely as
+   decoration without adding any actual space to the layout. */
+.sword-guard {
+  position: relative;
+  width: 128px;
+  height: 12px;
+}
+
+.sword-guard-bar {
+  display: block; /* a bare <span> defaults to inline, which ignores
+    width/height entirely — needs this now that it's a normal in-flow box
+    instead of position: absolute */
+  width: 98px;
+  height: 100%;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #f6d78a, var(--gold) 55%, #a97a1f);
+  box-shadow: 0 2px 4px rgba(6, 8, 13, 0.4);
+}
+
+.sword-guard-wing {
+  position: absolute;
+  top: 50%;
+  width: 34px;
+  height: 19px;
+  transform: translateY(-50%);
+  background: linear-gradient(180deg, #f6d78a, var(--gold) 60%, #8a611c);
+  box-shadow: 0 2px 4px rgba(6, 8, 13, 0.35);
+}
+
+.sword-guard-wing--left {
+  left: 0;
+  clip-path: polygon(100% 30%, 100% 70%, 15% 100%, 0 60%, 25% 0);
+}
+
+.sword-guard-wing--right {
+  right: 0;
+  clip-path: polygon(0 30%, 0 70%, 85% 100%, 100% 60%, 75% 0);
+}
+
+.sword-guard-gem {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  z-index: 1;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: radial-gradient(circle at 35% 30%, #eafffe, #52e4ff 55%, #0f7fa8 100%);
+  box-shadow: 0 0 6px rgba(82, 228, 255, 0.7);
+}
+
+@keyframes sword-gem-pulse {
+  0%, 100% { opacity: 0.75; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+/* ---------- Blade — a sliver already visible at rest (as if the tip is
+   already stuck in the card), drawn the rest of the way up on hover ---- */
+
+.sword-blade {
+  position: relative;
+  box-sizing: border-box; /* so max-height/padding below describe the same
+    box getBoundingClientRect reports — without this, padding is added on
+    top of max-height instead of eating into it, and the "sliver" ends up
+    several times taller than intended (padding alone, content squeezed
+    to 0) */
+  width: 40px; /* matches .sword-grip exactly — was 104px, then 76px, then
+                  46px; sized to the piece that actually needs to hold
+                  content (the grip carries the name), not floating wider
+                  than it. The guard is deliberately the widest piece. */
+  overflow: hidden;
+  max-height: 14px; /* the "already stuck in" sliver — see AccountMenu.jsx */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  /* Flat base (against the guard) tapering to a point at the bottom (the
+     tip, pinned at the card's surface — see AccountMenu.jsx). Percentages
+     resolve against the blade's own current height, so the point stays
+     correct through the whole grow animation with no fixed coordinates
+     to keep in sync. */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), 50% 100%, 0 calc(100% - 14px));
+  background:
+    linear-gradient(90deg, transparent 30%, rgba(255, 255, 255, 0.7) 50%, transparent 70%),
+    linear-gradient(180deg, #f4f5f7 0%, #d3d7de 42%, #9aa0ab 78%, #767c88 100%);
+  /* Barely any padding at rest — there's only 14px of box to work with.
+     The full padding (tip clearance included) only applies once open. */
+  padding: 2px 4px 2px;
+  transition: max-height 700ms cubic-bezier(0.16, 1, 0.3, 1), padding 700ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.account-menu--open .sword-blade {
+  max-height: 130px; /* just the two icon items now — no avatar block */
+  padding: 8px 4px 16px;
+  filter: drop-shadow(0 0 10px rgba(82, 228, 255, 0.4));
+}
+
+/* Faceted edge highlights running the length of the blade. */
+.sword-blade-edge {
+  position: absolute;
+  top: 0;
+  bottom: 14px;
+  width: 2px;
+  opacity: 0.8;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.15));
+}
+
+.sword-blade-edge--left { left: 3px; }
+.sword-blade-edge--right { right: 3px; }
+
+/* Glowing energy line down the fuller, matching the gems' cyan — visible
+   even in the resting sliver, so the buried tip already glimmers. */
+.sword-blade-glow {
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  bottom: 16px;
+  width: 2px;
+  opacity: 0.55;
+  pointer-events: none;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgba(82, 228, 255, 0.9), rgba(82, 228, 255, 0.15));
+  box-shadow: 0 0 6px rgba(82, 228, 255, 0.7);
+}
+
+/* One-shot light sweep down the blade each time it's drawn. */
+.sword-blade-sweep {
+  position: absolute;
+  left: -40%;
+  top: -20%;
+  width: 40%;
+  height: 160%;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-120%) rotate(8deg);
+  background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.55) 45%, transparent 60%);
+}
+
+.account-menu--open .sword-blade-sweep {
+  animation: sword-blade-sweep 850ms ease-out;
+}
+
+@keyframes sword-blade-sweep {
+  0% { transform: translateX(-120%) rotate(8deg); opacity: 0; }
+  15% { opacity: 0.9; }
+  60% { opacity: 0.5; }
+  100% { transform: translateX(420%) rotate(8deg); opacity: 0; }
+}
+
+/* Small glowing spark right at the point — sits inside the resting sliver
+   too, so there's already a glimmer of "something stuck in the card". */
+.sword-tip-spark {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, #eafffe, #52e4ff 60%, transparent 100%);
+  box-shadow: 0 0 8px 2px rgba(82, 228, 255, 0.9);
+  animation: sword-gem-pulse 2.2s ease-in-out infinite;
+}
+
+/* Identity block — currently unused (see the note at the top of
+   AccountMenu.jsx: the avatar is temporarily removed from the blade).
+   Left in place so re-adding a `<div className="sword-identity">` just
+   works again with no styling to rebuild. */
+.sword-identity {
+  display: flex;
+  justify-content: center;
+  padding: 2px 4px 8px;
+}
+
+.sword-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(28, 34, 44, 0.2);
+}
+
+.sword-avatar--fallback {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 14px;
+  color: #1c222c;
+  background: rgba(28, 34, 44, 0.12);
+}
+
+/* Icon-only now (no text label — see AccountMenu.jsx, each button still
+   carries an aria-label since there's nothing visible to name it). */
+.sword-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(28, 34, 44, 0.15);
+  color: #1c222c;
+  padding: 9px 0;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.sword-item:hover { background: rgba(82, 228, 255, 0.14); }
+
+.sword-item--danger { color: #7a2412; border-bottom: none; }
+.sword-item--danger:hover { background: var(--crimson); color: #ffffff; }
+
+/* Mobile-only hamburger trigger — hidden on desktop, swapped in for the
+   whole sword hilt below 520px (see the media query at the bottom and the
+   note at the top of AccountMenu.jsx). Plain 3-bar icon, no sword theming. */
+.hamburger-icon {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 22px;
+  height: 15px;
+}
+
+.hamburger-bar {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--gold);
+}
+
+@media (max-width: 520px) {
+  /* Swap the sword for a plain hamburger button + a plain dropdown panel.
+     The sword, at any size, still needs real vertical room to float above
+     the card (see the positioning trick explained in AccountMenu.jsx) —
+     on a narrow screen there just isn't enough header space for that
+     without risking covering the subtitle text below it. A flat icon
+     anchored at a fixed spot sidesteps the problem entirely instead of
+     fighting for space: `top` replaces `bottom` here (no more "grow
+     upward from a pinned point" — the panel now just opens downward,
+     like an ordinary dropdown).
+     `position: fixed` (instead of the base rule's `absolute`, which was
+     relative to `.list-switcher-wrap` further down the page) pins it to
+     the top-right corner of the viewport instead of floating level with
+     "Up next" partway down the header, and it stays fixed there through
+     scroll since it's no longer anchored to a card in flow. `top: 24px`
+     matches `.queue-app`'s own padding-top at this width (24px, see the
+     640px breakpoint above), which is where the "Now booking" eyebrow's
+     line box starts — so the hamburger sits level with that top line of
+     text instead of the page's bare top edge. `right: 16px` matches the
+     app's side padding. `align-items: flex-end` (overriding the base
+     rule's `center`) keeps the hamburger button itself flush against that
+     pinned right edge — the container's own box is as wide as its widest
+     child (the 128px-wide dropdown panel), and centering inside that
+     wider box was pushing the visible icon left of the actual edge. */
+  .account-menu { position: fixed; right: 16px; top: 24px; bottom: auto; z-index: 50; align-items: flex-end; }
+
+  .sword-pommel,
+  .sword-grip,
+  .sword-guard {
+    display: none;
+  }
+
+  .hamburger-icon { display: flex; }
+
+  /* The blade becomes a plain small dropdown card — same items/handlers,
+     none of the sword's shape, gradient, or glow effects. Border/padding
+     only apply once open, not at rest — with border-box sizing, a
+     max-height: 0 box can't actually shrink below its own border +
+     padding, so leaving them on at rest left a hairline empty outline
+     floating above the hamburger instead of nothing at all. */
+  .sword-blade {
+    width: 128px;
+    max-height: 0;
+    clip-path: none;
+    background: var(--surface);
+    border: 0 solid var(--line);
+    border-radius: 10px;
+    padding: 0;
+  }
+
+  .account-menu--open .sword-blade {
+    max-height: 100px;
+    border-width: 1px;
+    padding: 4px;
+    box-shadow: 0 10px 24px rgba(6, 8, 13, 0.45);
+    filter: none;
+  }
+
+  .sword-blade-edge,
+  .sword-blade-glow,
+  .sword-blade-sweep,
+  .sword-tip-spark {
+    display: none;
+  }
+
+  .sword-item {
+    color: var(--text);
+    border-bottom: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 0;
+  }
+
+  .sword-item--danger { color: var(--crimson); }
+  .sword-item--danger:hover { background: var(--crimson); color: #ffffff; }
+}

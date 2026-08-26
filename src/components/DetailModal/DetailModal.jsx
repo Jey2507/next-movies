@@ -401,6 +401,40 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
   // regardless of who's rated" guarantee that having the full roster gives.
   const ratingMemberNames = memberNames?.length ? memberNames : ratingEntries.map(([name]) => name)
 
+  // uaserials.com's own search sends back a results *list* (see the button
+  // below) — this instead asks api/uaserials-search.js (a small server-side
+  // proxy, needed because the browser can't fetch that site's search page
+  // itself past CORS) for the one result whose title is an exact match, and
+  // sends the tab straight there. The blank tab is opened synchronously,
+  // inside the click's own gesture, and only navigated once the lookup
+  // resolves — opening it *after* the async fetch would get treated as a
+  // popup and blocked by the browser. `tab.opener = null` still severs the
+  // reverse reference (same protection `rel="noopener"` gives a plain link)
+  // without losing this component's own ability to navigate it later.
+  async function openUaserials(e) {
+    e.preventDefault()
+    e.stopPropagation()
+    const fallbackUrl = `https://uaserials.com/index.php?do=search&subaction=search&story=${encodeURIComponent(item.title)}`
+    const tab = window.open('', '_blank')
+    if (tab) tab.opener = null
+    let url = fallbackUrl
+    try {
+      const params = new URLSearchParams({ title: item.title })
+      if (item.year) params.set('year', item.year)
+      const response = await fetch(`/api/uaserials-search?${params}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data?.url) url = data.url
+      }
+    } catch {
+      // Lookup failed (offline, no serverless function in this environment,
+      // uaserials.com unreachable, ...) — the blank tab below still lands on
+      // the plain search page rather than being left stuck on about:blank.
+    }
+    if (tab) tab.location.href = url
+    else window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   function handleRate(value) {
     if (!onRate) return
     // Guards against a double-fired click (e.g. an accidental double click,
@@ -519,6 +553,34 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
                   <option key={s.id} value={s.id} style={{ color: s.color }}>{s.label}</option>
                 ))}
               </select>
+              {/* External "where to watch" links — UASerials is the
+                  priority/primary target. Its href is just the plain search
+                  page (a no-JS fallback and the target while openUaserials's
+                  own lookup is still in flight); the onClick intercepts the
+                  click and, via api/uaserials-search.js, redirects the
+                  opened tab straight to the exact-matching title's page
+                  instead of leaving the search results list up. The plain
+                  web search is a fallback for anything UASerials doesn't
+                  have, and needs no such lookup. */}
+              <div className="modal-watch-links" onClick={(e) => e.stopPropagation()}>
+                <a
+                  className="modal-watch-link modal-watch-link--primary"
+                  href={`https://uaserials.com/index.php?do=search&subaction=search&story=${encodeURIComponent(item.title)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={openUaserials}
+                >
+                  ▶ Watch on UASerials
+                </a>
+                <a
+                  className="modal-watch-link"
+                  href={`https://www.google.com/search?q=${encodeURIComponent(item.title + ' дивитися онлайн')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Search other sites ↗
+                </a>
+              </div>
             </div>
           </div>
           <div className="modal-ratings">

@@ -30,14 +30,18 @@ Each component owns one folder: `src/components/<Name>/<Name>.jsx` + `<Name>.css
 | Supabase client init | `src/supabaseClient.js` |
 | Auth session state (sign in/out, 2-week inactivity auto-logout) | `src/useAuth.js` |
 | Shared/personal lists (create, join by code, switch) | `src/useLists.js` |
+| Editable profile (display name, avatar), backing the Settings modal | `src/useProfile.js` |
 | Per-author note attribution (diff/rebase colored note segments) | `src/noteSegments.js` |
 | Per-author note color palette (deterministic hue per name/list) | `src/noteAuthorColors.js` |
 | TMDB extra-details fetch hook, used only by DetailModal | `src/useTmdbDetails.js` |
 | DB schema, RLS policies, `handle_new_user` trigger | `src/schema.sql` |
-| Item detail modal (TMDB extra info, notes editing) | `src/components/DetailModal/` |
+| Vercel serverless function: exact-title lookup against uaserials.com's search (server-side fetch+parse, since that site sends no CORS headers for a browser fetch), used by DetailModal's "Watch on UASerials" button | `api/uaserials-search.js` |
+| Item detail modal (TMDB extra info, notes editing, "watch on other sites" links) | `src/components/DetailModal/` |
 | Delete confirmation guard (used by `removeItem`) | `src/components/ConfirmDeleteModal/` |
 | Generic confirm-before-you-act dialog (non-destructive, e.g. sign out) | `src/components/ConfirmModal/` |
 | Sign in / sign up screen | `src/components/AuthScreen/` |
+| Settings modal (avatar upload, rename, sign out) | `src/components/Settings/` |
+| Account control — ornate sword driven tip-first into the "Your lists" card; hilt (name on the grip) always shows, hover draws the blade up out of the card to reveal avatar + Settings + Log out | `src/components/AccountMenu/` |
 | Switch between personal/shared lists, join-by-code UI | `src/components/ListSwitcher/` |
 | TMDB title search input + results dropdown | `src/components/SearchBox/` |
 | Manual "add to queue" form | `src/components/AddItemForm/` |
@@ -90,6 +94,8 @@ Each lives in its own folder under `src/components/` (see File map above) — e.
 - `ConfirmDeleteModal/` — confirmation modal shown before an item is actually removed. It's the accidental-tap guard in front of `removeItem` in App.jsx: the ticket's × button no longer deletes directly, it sets `pendingDelete`, and this modal's confirm action calls `removeItem`. Reuse this pattern for any other destructive action instead of adding a new bespoke confirm dialog.
 - `ConfirmModal/` — generic version of the same accidental-tap guard, for non-destructive but disruptive actions (e.g. sign out), gated by a `tone` prop instead of delete-specific copy/styling.
 - `AuthScreen/` — sign in / sign up screen.
+- `Settings/` — settings modal, opened via `AccountMenu`'s "Settings" item. Change display name and avatar (picked file is downscaled/compressed client-side to a JPEG data URI, no storage bucket — see `useProfile.js`), plus its own sign out button (same `pendingSignOut` + `ConfirmModal` hand-off `AccountMenu`'s "Log out" item also uses — left in place as a second path to it, not a second confirm guard).
+- `AccountMenu/` — account control: an ornate fantasy sword driven tip-first into the top-right corner of the `ListSwitcher` ("Your lists") card, positioned by App.jsx's `.list-switcher-wrap`. At rest only the hilt shows above the card (gold pommel with a glowing cyan gem, leather-wrapped grip showing the display name, winged gold crossguard with a matching gem) — the blade is collapsed to nothing, as if buried in the card. Hovering/tapping the hilt draws the silver blade up out of the card (tip leaves last), revealing, base to tip: the avatar, "Settings" (opens the `Settings` modal above), then "Log out". Replaced an earlier plain gold-bookmark-tab version of this same control (which itself replaced the old flat `account-chip` button that used to sit in the header and open `Settings` directly).
 - `ListSwitcher/` — switch between personal/shared lists, join-by-code UI.
 - `SearchBox/` — TMDB title search input + results dropdown. Presentational; the debounced fetch lives in App.jsx.
 - `AddItemForm/` — manual "add to queue" form (title/type/year/genre).
@@ -168,6 +174,9 @@ When requirements conflict, prioritize:
 
 Log structural changes here (moved/renamed files, new folders/conventions) — not feature changes, those are in git history. Newest first.
 
+- 2026-08-26 — Added `api/` as a new top-level folder: `api/uaserials-search.js` is a Vercel serverless function (auto-deployed from `/api`, no framework change needed — still plain Vite, not Next.js). It's a server-side proxy for DetailModal's "Watch on UASerials" button: uaserials.com sends no CORS headers, so the browser can't fetch+parse its search page itself to find the exact-matching title; this function does that fetch server-to-server instead and returns just the matched item's URL. This is the first non-Supabase backend code in the project — if more server-side proxying is ever needed, put it alongside this file in `api/`, one file per endpoint (Vercel maps each file under `api/` to its own function, no router needed).
+- 2026-08-26 — Added `src/components/AccountMenu/` (gold bookmark-tab control that rises to reveal avatar/name + Settings + Log out on hover/tap) and removed the `.account-bar`/`.account-chip*`/`.account-avatar*`/`.account-name` rules it replaced from `App.css`. It's no longer part of the header — it's positioned via App.jsx's `.list-switcher-wrap` (`position: relative`) flush against the top-right corner of the `ListSwitcher` ("Your lists") card, not the header row. `Settings/` is now opened from `AccountMenu`'s "Settings" item instead of a click on the old chip; `Settings`' own sign-out button is unchanged and still works, so sign-out has two entry points sharing the same `pendingSignOut` + `ConfirmModal` guard.
+- 2026-08-26 — Added `src/components/Settings/` (avatar/name/sign-out modal) + `src/useProfile.js` (its data hook) + `profiles.avatar_url` column (schema.sql). Avatars are stored as client-side-downscaled JPEG data URIs directly in `profiles.avatar_url`, deliberately kept off auth `user_metadata` (unlike `display_name`) since that gets embedded in every JWT.
 - 2026-08-26 — Moved each `src/components/*` file pair into its own folder (`src/components/<Name>/<Name>.jsx` + `.css`), so a component's own files are the only two files in its folder. Added the File map above. When adding a new component, follow this pattern: create `src/components/<Name>/<Name>.jsx` + `<Name>.css`, import as `./components/<Name>/<Name>` from App.jsx.
 - 2026-08-26 — Split up the two largest files so each can be read in part instead of whole:
   - `App.jsx` (788 → 563 lines): pulled pure logic out into `src/constants.js`, `src/itemsStorage.js`, `src/tmdbResults.js`; extracted four new presentational components — `SearchBox/`, `AddItemForm/`, `FilterBar/`, `TicketCard/` — with their CSS moved out of `App.css` into each one's own `.css` (App.css keeps only the app-shell/layout rules that are still in App.jsx: `.queue-app`, header, `.empty-state`, `.ticket-grid` container).

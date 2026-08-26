@@ -42,7 +42,7 @@ body {
 }
 
 .queue-header {
-  margin-bottom: 36px;
+  margin-bottom: 28px;
 }
 
 .queue-header-row {
@@ -52,50 +52,90 @@ body {
   gap: 16px;
 }
 
-.account-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  padding-top: 4px;
+@media (max-width: 520px) {
+  .queue-header-row { flex-wrap: wrap; }
 }
 
-.account-name {
-  font-family: 'JetBrains Mono', monospace;
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: 0.02em;
+/* Identity badge — no card chrome of its own now (no background/border/
+   padding): just the avatar photo, a fixed 138×138 square. Name is layered
+   directly on top of the photo, bottom-anchored over a dark scrim,
+   poster-caption style, instead of sitting in its own row underneath and
+   costing extra height. Was previously inside ListSwitcher's join-form
+   row; moved here since it's an account-level thing, unrelated to joining
+   a list. */
+.profile-badge {
+  position: relative;
+  width: 138px;
+  height: 138px;
+  flex-shrink: 0;
+  border-radius: 15px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.profile-badge-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-badge-avatar--fallback {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 34px;
   color: var(--gold);
-  max-width: 160px;
+  background: var(--gold-dim);
+}
+
+/* Poster-caption treatment — a taller, denser scrim (not just a thin
+   gradient sliver) so the name stays legible over any photo regardless of
+   how bright/busy it is, plus a text-shadow as a second line of defense.
+   Bebas Neue + letter-spacing + uppercase to read as a stylized ticket
+   label rather than plain UI text. */
+.profile-badge-name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  padding: 28px 0 0;
+  background: linear-gradient(to top, rgba(6, 8, 13, 0.92) 30%, rgba(6, 8, 13, 0.55) 65%, rgba(6, 8, 13, 0) 100%);
+}
+
+/* The actual backing plate behind the letters — a translucent, blurred bar
+   spanning the full width of the avatar (no rounding, flush with the
+   card's own bottom edge), on top of the wider scrim above. Belt and
+   braces: even a bright/busy photo can't wash the name out since this bar
+   carries its own contrast independent of what's behind it. */
+.profile-badge-name-pill {
+  width: 100%;
+  padding: 3px 8px 1px;
+  background: rgba(6, 8, 13, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.account-signout {
-  background: var(--surface-raised);
-  border: 1px solid var(--crimson-dim);
-  color: var(--crimson);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-radius: 999px;
-  padding: 6px 14px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.account-signout:hover {
-  background: var(--crimson);
-  border-color: var(--crimson);
-  color: #ffffff;
-}
-
-@media (max-width: 520px) {
-  .queue-header-row { flex-wrap: wrap; }
-  .account-bar { padding-top: 0; }
-  .account-name { max-width: 120px; }
+/* Positioning anchor for AccountMenu (bookmark-tab that unfurls into
+   avatar/name + Settings + Log out — see components/AccountMenu/), which
+   sits flush against this card's top-right corner as an absolutely
+   positioned child. The card's own visuals (background/border/radius) are
+   ListSwitcher's, this wrapper only exists to anchor the tab to it. */
+.list-switcher-wrap {
+  position: relative;
 }
 
 .brand-mark {

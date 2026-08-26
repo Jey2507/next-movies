@@ -3,9 +3,12 @@ import './App.css'
 import { supabase, isSupabaseConfigured } from './supabaseClient'
 import { useAuth } from './useAuth'
 import { useLists } from './useLists'
+import { useProfile } from './useProfile'
 import DetailModal from './components/DetailModal/DetailModal'
 import ConfirmDeleteModal from './components/ConfirmDeleteModal/ConfirmDeleteModal'
 import ConfirmModal from './components/ConfirmModal/ConfirmModal'
+import Settings from './components/Settings/Settings'
+import AccountMenu from './components/AccountMenu/AccountMenu'
 import AuthScreen from './components/AuthScreen/AuthScreen'
 import ListSwitcher from './components/ListSwitcher/ListSwitcher'
 import SearchBox from './components/SearchBox/SearchBox'
@@ -32,11 +35,15 @@ export default function App() {
     leaveList,
     leaveError,
   } = useLists(user)
+  const { avatarUrl, updateProfile } = useProfile(user)
   const [pendingSignOut, setPendingSignOut] = useState(false)
   const [pendingLeaveList, setPendingLeaveList] = useState(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   // display_name is captured at signup into user_metadata (see AuthScreen
   // + useAuth's signUp) and Supabase mirrors it onto the session's user
   // object, so no extra query is needed just to label the account bar.
+  // Settings renames go through the same field (see useProfile.js), so
+  // this stays correct after an edit too.
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || ''
 
   const [items, setItems] = useState(isSupabaseConfigured ? [] : loadLocal)
@@ -188,6 +195,7 @@ export default function App() {
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [])
+
 
   async function addItem(entry) {
     const position = items.length ? Math.min(...items.map((i) => i.position || 0)) - 1 : 1
@@ -457,14 +465,31 @@ export default function App() {
             <h1 className="queue-title">Up next</h1>
             <p className="queue-sub">Your queue of titles waiting for a premiere night.</p>
           </div>
+
+          {/* Identity badge (avatar, name below it) — temporarily disabled,
+              left in place (not deleted) in case it comes back. Was:
+              lives in the header's own right-hand slot (queue-header-row
+              is already flex + space-between for exactly this), so who's
+              signed in is always visible up top without hovering
+              AccountMenu's sword or scrolling down to the "Your lists"
+              card. Previously lived in ListSwitcher's join-form row —
+              moved here since it's an account-level thing, not related to
+              joining a list.
           {isSupabaseConfigured && user && (
-            <div className="account-bar">
-              <span className="account-name">{displayName}</span>
-              <button type="button" className="account-signout" onClick={() => setPendingSignOut(true)}>
-                Sign out
-              </button>
+            <div className="profile-badge">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" className="profile-badge-avatar" />
+              ) : (
+                <span className="profile-badge-avatar profile-badge-avatar--fallback">
+                  {(displayName || '?').trim().charAt(0).toUpperCase()}
+                </span>
+              )}
+              <span className="profile-badge-name">
+                <span className="profile-badge-name-pill">{displayName}</span>
+              </span>
             </div>
           )}
+          */}
         </div>
       </header>
 
@@ -476,19 +501,33 @@ export default function App() {
 
       {isSupabaseConfigured && (
         <>
-          <ListSwitcher
-            lists={lists}
-            listsError={listsError}
-            activeListId={activeListId}
-            activeList={activeList}
-            onSwitch={setActiveListId}
-            onCreateShared={createSharedList}
-            createError={createError}
-            onJoin={joinList}
-            joinError={joinError}
-            onRequestLeave={setPendingLeaveList}
-            leaveError={leaveError}
-          />
+          {/* position: relative anchor for AccountMenu, which sits flush
+              against this card's top-right corner — see AccountMenu.css. */}
+          <div className="list-switcher-wrap">
+            {user && (
+              <AccountMenu
+                displayName={displayName}
+                avatarUrl={avatarUrl}
+                onOpenSettings={() => setSettingsOpen(true)}
+                onRequestSignOut={() => setPendingSignOut(true)}
+              />
+            )}
+            <ListSwitcher
+              lists={lists}
+              listsError={listsError}
+              activeListId={activeListId}
+              activeList={activeList}
+              onSwitch={setActiveListId}
+              onCreateShared={createSharedList}
+              createError={createError}
+              onJoin={joinList}
+              joinError={joinError}
+              onRequestLeave={setPendingLeaveList}
+              avatarUrl={avatarUrl}
+              displayName={displayName}
+              leaveError={leaveError}
+            />
+          </div>
           <div className="section-tear" aria-hidden="true" />
         </>
       )}
@@ -589,6 +628,15 @@ export default function App() {
           removeItem(pendingDelete.id)
           setPendingDelete(null)
         }}
+      />
+
+      <Settings
+        open={settingsOpen}
+        displayName={displayName}
+        avatarUrl={avatarUrl}
+        onClose={() => setSettingsOpen(false)}
+        onSave={updateProfile}
+        onRequestSignOut={() => setPendingSignOut(true)}
       />
 
       <ConfirmModal

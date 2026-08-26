@@ -251,6 +251,45 @@
 .modal-status-select--watching { color: var(--teal); border-color: var(--teal-dim); }
 .modal-status-select--done { color: var(--green); border-color: var(--green-dim); }
 
+/* External "where to watch" links, right under the status pill — see
+   DetailModal.jsx. UASerials is the priority site (filled/gold, like the
+   trailer's play button) so it reads as the default action; anything else
+   is a plain outlined pill next to it. */
+.modal-watch-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.modal-watch-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  padding: 4px 10px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.modal-watch-link:hover { color: var(--text); border-color: var(--gold); }
+
+.modal-watch-link--primary {
+  color: var(--gold);
+  border-color: var(--gold-dim);
+  /* --gold (#e8b34c) as rgba — no --gold-rgb variable exists to reuse. */
+  background: rgba(232, 179, 76, 0.08);
+}
+
+.modal-watch-link--primary:hover { border-color: var(--gold); }
+
 /* Small round icon parked at the bottom of the card (in normal flow, after
    the last section) that reveals the notes panel below. `sticky` keeps it
    reachable at the bottom of the card's own scroll viewport (modal-card
