@@ -13,13 +13,17 @@ const TYPE_LABELS = {
   anime: 'Anime',
 }
 
-export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal, onSaveNotes, onChangeStatus, onRate, memberNames, viewerName, listId }) {
+export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBackdrop, isPersonal, onSaveNotes, onChangeStatus, onRate, onBackfillBackdrop, memberNames, viewerName, listId }) {
   const { details, loading, error } = useTmdbDetails(item, apiKey)
   const posterRef = useRef(null)
   const modalCardRef = useRef(null)
   // Backdrop layer behind the (visually transparent) notes textarea that
   // renders the actual, per-author colored text — see the notes panel JSX.
   const notesHighlightRef = useRef(null)
+  // Which item id this modal has already tried to backfill a `backdrop` for
+  // (see the effect below) — keeps a slow save from being retried on every
+  // re-render while it's still in flight.
+  const backfilledBackdropRef = useRef(null)
   // Poster zoom is a small state machine so the enlarge/return animation can
   // run in two steps: 'opening' pins the image at its exact original spot
   // (via position: fixed, so it can escape the modal's own scroll clipping)
@@ -39,6 +43,18 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
   if ((item?.id ?? null) !== zoomedForItem) {
     setZoomedForItem(item?.id ?? null)
     setZoomPhase('idle')
+  }
+
+  // Trailer starts as a thumbnail (see modal-trailer-thumb below) and only
+  // swaps in the actual YouTube iframe once clicked, so opening the modal
+  // never embeds/loads a player nobody asked for. Reset the same
+  // render-phase way as zoomPhase above, so switching items never leaves a
+  // previous title's trailer playing behind the new poster/title.
+  const [trailerOpen, setTrailerOpen] = useState(false)
+  const [trailerForItem, setTrailerForItem] = useState(item?.id ?? null)
+  if ((item?.id ?? null) !== trailerForItem) {
+    setTrailerForItem(item?.id ?? null)
+    setTrailerOpen(false)
   }
 
   // Local draft of the notes textarea, saved on a debounce (below) rather
@@ -167,6 +183,21 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id])
 
+  // Opportunistically backfills `backdrop` on items added before that field
+  // existed (or where TMDB had no backdrop at add-time), using the same
+  // title/year match useTmdbDetails already fetched above for the
+  // overview/trailer — so an old ticket card picks up its landscape
+  // background the first time it's opened, without a bulk migration. Never
+  // overwrites an existing backdrop.
+  useEffect(() => {
+    const itemId = item?.id
+    const backdropPath = details?.backdrop_path
+    if (!onBackfillBackdrop || !itemId || item.backdrop || !backdropPath) return
+    if (backfilledBackdropRef.current === itemId) return
+    backfilledBackdropRef.current = itemId
+    onBackfillBackdrop(itemId, imgBaseBackdrop + backdropPath)
+  }, [item, details, imgBaseBackdrop, onBackfillBackdrop])
+
   function togglePosterZoom() {
     if (zoomPhase === 'idle') {
       const el = posterRef.current
@@ -280,6 +311,13 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
 
   const isTv = item.type === 'series' || item.type === 'anime'
   const poster = item.poster || (details?.poster_path ? imgBase + details.poster_path : null)
+  // Prefer an official Trailer, then a Teaser, then just whatever YouTube
+  // clip TMDB has — some titles (esp. anime) only ever get a teaser listed.
+  const videos = details?.videos?.results || []
+  const trailer =
+    videos.find((v) => v.site === 'YouTube' && v.type === 'Trailer') ||
+    videos.find((v) => v.site === 'YouTube' && v.type === 'Teaser') ||
+    videos.find((v) => v.site === 'YouTube')
   const paletteRotation = paletteRotationFor(listId)
   const noteAuthorColor = !isPersonal ? authorColor(item.notes_updated_by_name, memberNames, paletteRotation) : null
   // Re-diffed on every render against this edit's own frozen baseline (see
@@ -478,6 +516,39 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
               </div>
             )}
           </>
+        )}
+
+        {!loading && trailer && (
+          <div className="modal-trailer">
+            {trailerOpen ? (
+              <div className="modal-trailer-frame">
+                <iframe
+                  src={`https://www.youtube.com/embed/${trailer.key}?autoplay=1&rel=0`}
+                  title={trailer.name || 'Trailer'}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="modal-trailer-thumb"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setTrailerOpen(true)
+                }}
+                aria-label="Play trailer"
+              >
+                <img
+                  className="modal-trailer-thumb-img"
+                  src={`https://img.youtube.com/vi/${trailer.key}/hqdefault.jpg`}
+                  alt=""
+                  loading="lazy"
+                />
+                <span className="modal-trailer-play">▶</span>
+              </button>
+            )}
+          </div>
         )}
 
         <div className="modal-ratings">

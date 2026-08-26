@@ -56,6 +56,7 @@ Only open files outside this table (or grep) when a task isn't covered by it.
   genre,
   status: planned | watching | done,
   poster,
+  backdrop,
   position
 }
 

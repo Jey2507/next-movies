@@ -64,8 +64,11 @@ export function useTmdbDetails(item, apiKey) {
           if (!cancelled) setError('No extra details found on TMDB.')
           return
         }
+        // append_to_response=videos folds the trailer lookup into this same
+        // call instead of a third fetch — DetailModal picks a YouTube
+        // trailer/teaser out of details.videos.results.
         const detailRes = await fetch(
-          `https://api.themoviedb.org/3/${isTv ? 'tv' : 'movie'}/${match.id}?api_key=${apiKey}`
+          `https://api.themoviedb.org/3/${isTv ? 'tv' : 'movie'}/${match.id}?api_key=${apiKey}&append_to_response=videos`
         )
         if (!detailRes.ok) throw new Error('detail failed')
         const detailData = await detailRes.json()

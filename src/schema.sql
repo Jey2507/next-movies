@@ -93,6 +93,12 @@ alter table list_members alter column user_id set default auth.uid();
 
 alter table items add column if not exists list_id uuid references lists(id) on delete cascade;
 
+-- Landscape TMDB backdrop image (backdrop_path, not poster_path), used as
+-- the ticket card's background image instead of stretching/cropping the
+-- vertical poster into a wide card — see TicketCard.jsx. Older rows have
+-- this null and just fall back to `poster` there.
+alter table items add column if not exists backdrop text;
+
 -- Free-text notes on an item. One field per item, not a threaded/per-user
 -- comment log — on a personal list it's just your own notes; on a shared
 -- list every member reads and edits the same field (see DetailModal.jsx),

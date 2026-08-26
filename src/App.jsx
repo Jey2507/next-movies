@@ -13,7 +13,7 @@ import AddItemForm from './components/AddItemForm/AddItemForm'
 import FilterBar from './components/FilterBar/FilterBar'
 import TicketCard from './components/TicketCard/TicketCard'
 import { diffNoteSegments, committedNoteSegments, rebaseText } from './noteSegments'
-import { TMDB_API_KEY, TMDB_IMG } from './constants'
+import { TMDB_API_KEY, TMDB_IMG, TMDB_IMG_BACKDROP } from './constants'
 import { normalizePositions, loadLocal, saveLocal } from './itemsStorage'
 import { guessType, firstGenre } from './tmdbResults'
 
@@ -190,7 +190,7 @@ export default function App() {
   }, [])
 
   async function addItem(entry) {
-    const position = items.length ? Math.max(...items.map((i) => i.position || 0)) + 1 : 1
+    const position = items.length ? Math.min(...items.map((i) => i.position || 0)) - 1 : 1
     const withPosition = { ...entry, position }
     if (isSupabaseConfigured) {
       if (!activeListId) return
@@ -215,6 +215,7 @@ export default function App() {
       genre: firstGenre(result),
       status: 'planned',
       poster: result.poster_path ? TMDB_IMG + result.poster_path : null,
+      backdrop: result.backdrop_path ? TMDB_IMG_BACKDROP + result.backdrop_path : null,
     })
     setQuery('')
     setResults([])
@@ -231,6 +232,7 @@ export default function App() {
       genre: genre.trim(),
       status: 'planned',
       poster: null,
+      backdrop: null,
     })
     setTitle('')
     setYear('')
@@ -245,6 +247,15 @@ export default function App() {
   async function changeStatus(id, status) {
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)))
     if (isSupabaseConfigured) await supabase.from('items').update({ status }).eq('id', id)
+  }
+
+  // Backfills `backdrop` on an item that doesn't have one yet — see
+  // DetailModal's backfill effect, which is the only caller. Silent no-op
+  // (not surfaced to the user) if the write fails; worst case it just
+  // retries the next time this item's modal is opened.
+  async function saveBackdrop(id, backdrop) {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, backdrop } : i)))
+    if (isSupabaseConfigured) await supabase.from('items').update({ backdrop }).eq('id', id)
   }
 
   // notes_updated_by_name/_at record who last wrote the shared note and
@@ -556,10 +567,12 @@ export default function App() {
         onClose={() => setActiveItemId(null)}
         apiKey={TMDB_API_KEY}
         imgBase={TMDB_IMG}
+        imgBaseBackdrop={TMDB_IMG_BACKDROP}
         isPersonal={!isSupabaseConfigured || !!activeList?.is_personal}
         onSaveNotes={updateNotes}
         onChangeStatus={changeStatus}
         onRate={rateItem}
+        onBackfillBackdrop={saveBackdrop}
         memberNames={activeList?.memberNames}
         viewerName={displayName}
         listId={activeListId}

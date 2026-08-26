@@ -52,9 +52,13 @@ export default function TicketCard({ item, ticketRefs, isFirst, isLast, onOpen, 
       </div>
       <div className="ticket-perf" aria-hidden="true" />
       <div className="ticket-body">
-        {item.poster && (
+        {(item.backdrop || item.poster) && (
           <>
-            <img className="ticket-bg-poster" src={item.poster} alt="" aria-hidden="true" />
+            {/* Prefer the landscape backdrop over the vertical poster so this
+                background isn't a portrait image stretched/cropped to fill a
+                wide card — older items added before `backdrop` existed fall
+                back to the poster. */}
+            <img className="ticket-bg-poster" src={item.backdrop || item.poster} alt="" aria-hidden="true" />
             <div className="ticket-bg-overlay" aria-hidden="true" />
           </>
         )}
