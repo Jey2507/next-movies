@@ -346,12 +346,21 @@
 .modal-notes-input--overlay {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
   margin: 0;
   box-sizing: border-box;
   white-space: pre-wrap;
   word-wrap: break-word;
+  overflow-wrap: break-word;
+  /* A <textarea> and a <div> can otherwise pick up subtly different text
+     rendering (spacing/smoothing) from the browser, which then drifts wider
+     the longer a line gets — pinning these explicitly on both layers,
+     instead of leaving them to inherit/default, keeps every character at
+     the exact same spot in both. */
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .modal-notes-highlight {
@@ -364,6 +373,7 @@
   border-color: transparent;
   background: transparent;
   color: transparent;
+  -webkit-text-fill-color: transparent;
   caret-color: var(--text);
 }
 
