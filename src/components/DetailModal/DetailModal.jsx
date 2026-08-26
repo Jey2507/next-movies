@@ -241,6 +241,20 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
     setNotesOpen((open) => !open)
   }
 
+  // Blocks page scroll behind the modal for as long as it's open (any
+  // device, not just mobile) — otherwise a touch/wheel drag that misses the
+  // card (or the card's own scroll reaching its end) falls through to the
+  // page underneath.
+  const isOpen = Boolean(item)
+  useEffect(() => {
+    if (!isOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isOpen])
+
   useEffect(() => {
     if (!item) return
     function onKeyDown(e) {

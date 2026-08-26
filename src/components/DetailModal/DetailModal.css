@@ -670,8 +670,18 @@
    shrink it, and let the poster's own aspect ratio (not the viewport) decide
    its height so it stays sharp and proportioned instead of "rubbery". */
 @media (max-width: 520px) {
-  .modal-backdrop { padding: 16px; }
-  .modal-card { padding: 16px; max-height: calc(100vh - 32px); }
+  /* Edge-to-edge on phones: no backdrop padding/rounded corners left to eat
+     into the width, so the card actually spans the full screen width
+     instead of just being "wide". */
+  .modal-backdrop { padding: 0; align-items: stretch; }
+  .modal-card {
+    width: 100%;
+    max-width: 100%;
+    padding: 16px;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
   .modal-hero { gap: 12px; padding-right: 26px; }
   .modal-poster-slot {
     width: 92px;
