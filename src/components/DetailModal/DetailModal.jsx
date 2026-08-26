@@ -244,14 +244,25 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, imgBaseBac
   // Blocks page scroll behind the modal for as long as it's open (any
   // device, not just mobile) — otherwise a touch/wheel drag that misses the
   // card (or the card's own scroll reaching its end) falls through to the
-  // page underneath.
+  // page underneath. On desktop, `overflow: hidden` also removes the body's
+  // vertical scrollbar, which shrinks the viewport width and shifts
+  // everything behind the modal a few pixels right (then back on close) —
+  // padding the body by that same scrollbar width keeps the content's
+  // horizontal position fixed while it's hidden.
   const isOpen = Boolean(item)
   useEffect(() => {
     if (!isOpen) return
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth
     const previousOverflow = document.body.style.overflow
+    const previousPaddingRight = document.body.style.paddingRight
     document.body.style.overflow = 'hidden'
+    if (scrollbarWidth > 0) {
+      const currentPaddingRight = parseFloat(window.getComputedStyle(document.body).paddingRight) || 0
+      document.body.style.paddingRight = currentPaddingRight + scrollbarWidth + 'px'
+    }
     return () => {
       document.body.style.overflow = previousOverflow
+      document.body.style.paddingRight = previousPaddingRight
     }
   }, [isOpen])
 
