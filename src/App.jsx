@@ -3,99 +3,19 @@ import './App.css'
 import { supabase, isSupabaseConfigured } from './supabaseClient'
 import { useAuth } from './useAuth'
 import { useLists } from './useLists'
-import DetailModal from './components/DetailModal'
-import ConfirmDeleteModal from './components/ConfirmDeleteModal'
-import ConfirmModal from './components/ConfirmModal'
-import AuthScreen from './components/AuthScreen'
-import ListSwitcher from './components/ListSwitcher'
+import DetailModal from './components/DetailModal/DetailModal'
+import ConfirmDeleteModal from './components/ConfirmDeleteModal/ConfirmDeleteModal'
+import ConfirmModal from './components/ConfirmModal/ConfirmModal'
+import AuthScreen from './components/AuthScreen/AuthScreen'
+import ListSwitcher from './components/ListSwitcher/ListSwitcher'
+import SearchBox from './components/SearchBox/SearchBox'
+import AddItemForm from './components/AddItemForm/AddItemForm'
+import FilterBar from './components/FilterBar/FilterBar'
+import TicketCard from './components/TicketCard/TicketCard'
 import { diffNoteSegments, committedNoteSegments, rebaseText } from './noteSegments'
-
-// Get a free key at https://www.themoviedb.org/settings/api and paste it below.
-const TMDB_API_KEY = '4f5ec21ec83179db03e267a97d8f594d'
-const TMDB_IMG = 'https://image.tmdb.org/t/p/w200'
-const LOCAL_KEY = 'watch-queue-items'
-
-const TYPES = [
-  { id: 'movie', label: 'Movie' },
-  { id: 'series', label: 'Series' },
-  { id: 'anime', label: 'Anime' },
-]
-
-const STATUSES = [
-  { id: 'planned', label: 'Plan to watch', color: 'var(--gold)' },
-  { id: 'watching', label: 'In process', color: 'var(--teal)' },
-  { id: 'done', label: 'Done', color: 'var(--green)' },
-]
-
-const GENRE_NAMES = {
-  16: 'Animation', 18: 'Drama', 35: 'Comedy', 28: 'Action', 12: 'Adventure',
-  878: 'Sci-fi', 14: 'Fantasy', 9648: 'Mystery', 10765: 'Sci-fi & fantasy',
-  10759: 'Action & adventure', 80: 'Crime', 27: 'Horror', 10749: 'Romance',
-  53: 'Thriller', 99: 'Documentary', 10751: 'Family',
-}
-
-const SEED = [
-  { id: 1, title: 'Dune: Part Three', type: 'movie', year: '2026', genre: 'Sci-fi', status: 'planned', poster: null, position: 1 },
-  { id: 2, title: 'Severance', type: 'series', year: '2025', genre: 'Mystery', status: 'watching', poster: null, position: 2 },
-  { id: 3, title: 'Frieren', type: 'anime', year: '2023', genre: 'Fantasy', status: 'done', poster: null, position: 3 },
-]
-
-// Re-stamps every item's "position" as a clean 1..N sequence, in the order
-// items already sort into (missing/duplicate positions fall back to their
-// current array order instead of colliding). Returns { list, changed } so
-// callers can skip a write-back when nothing needed fixing.
-function normalizePositions(list) {
-  const withIndex = list.map((item, index) => ({ item, index }))
-  withIndex.sort((x, y) => {
-    const px = typeof x.item.position === 'number' ? x.item.position : Infinity
-    const py = typeof y.item.position === 'number' ? y.item.position : Infinity
-    return px - py || x.index - y.index
-  })
-  let changed = false
-  const result = withIndex.map(({ item }, idx) => {
-    const position = idx + 1
-    if (item.position !== position) changed = true
-    return item.position === position ? item : { ...item, position }
-  })
-  return { list: result, changed }
-}
-
-function loadLocal() {
-  try {
-    const raw = localStorage.getItem(LOCAL_KEY)
-    if (raw) return normalizePositions(JSON.parse(raw)).list
-  // eslint-disable-next-line no-unused-vars
-  } catch (e) {
-    // ignore corrupted storage
-  }
-  return SEED
-}
-
-function saveLocal(items) {
-  try {
-    localStorage.setItem(LOCAL_KEY, JSON.stringify(items))
-  // eslint-disable-next-line no-unused-vars
-  } catch (e) {
-    // ignore write failures
-  }
-}
-
-function initials(type) {
-  if (type === 'movie') return 'MOV'
-  if (type === 'series') return 'SER'
-  return 'ANI'
-}
-
-function guessType(result) {
-  const isAnime = result.original_language === 'ja' && (result.genre_ids || []).includes(16)
-  if (isAnime) return 'anime'
-  return result.media_type === 'tv' ? 'series' : 'movie'
-}
-
-function firstGenre(result) {
-  const id = (result.genre_ids || [])[0]
-  return GENRE_NAMES[id] || ''
-}
+import { TMDB_API_KEY, TMDB_IMG } from './constants'
+import { normalizePositions, loadLocal, saveLocal } from './itemsStorage'
+import { guessType, firstGenre } from './tmdbResults'
 
 export default function App() {
   const { user, authLoading, signUp, signIn, signOut } = useAuth()
@@ -518,118 +438,43 @@ export default function App() {
         </div>
       )}
 
-      <div className="search-box" ref={boxRef}>
-        <input
-          className="search-input"
-          placeholder="Search movies, series or anime..."
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setShowResults(true)
-          }}
-          onFocus={() => setShowResults(true)}
-        />
-        {showResults && (query.trim() || searching) && (
-          <div className="search-dropdown">
-            {searching && <div className="search-status">Searching…</div>}
-            {searchError && <div className="search-status search-status--error">{searchError}</div>}
-            {!searching && !searchError && query.trim() && results.length === 0 && (
-              <div className="search-status">No matches. Try adding it manually below.</div>
-            )}
-            {results.map((r) => (
-              <button key={r.id} type="button" className="search-result" onClick={() => addFromSearch(r)}>
-                {r.poster_path ? (
-                  <img className="search-result-poster" src={TMDB_IMG + r.poster_path} alt="" />
-                ) : (
-                  <div className="search-result-poster search-result-poster--empty" />
-                )}
-                <div className="search-result-info">
-                  <span className="search-result-title">{r.title || r.name}</span>
-                  <span className="search-result-meta">
-                    {(r.release_date || r.first_air_date || '').slice(0, 4) || '—'} ·{' '}
-                    {r.media_type === 'tv' ? 'Series' : 'Movie'}
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <SearchBox
+        boxRef={boxRef}
+        query={query}
+        onQueryChange={(value) => {
+          setQuery(value)
+          setShowResults(true)
+        }}
+        showResults={showResults}
+        onFocus={() => setShowResults(true)}
+        searching={searching}
+        searchError={searchError}
+        results={results}
+        onSelect={addFromSearch}
+      />
 
-      <form className="add-row" onSubmit={addManual}>
-        <input
-          className="add-input add-input--title"
-          placeholder="Add manually: title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <select className="add-input add-input--type" value={type} onChange={(e) => setType(e.target.value)}>
-          {TYPES.map((t) => (
-            <option key={t.id} value={t.id}>{t.label}</option>
-          ))}
-        </select>
-        <input
-          className="add-input add-input--year"
-          placeholder="Year"
-          value={year}
-          onChange={(e) => setYear(e.target.value)}
-        />
-        <input
-          className="add-input add-input--genre"
-          placeholder="Genre"
-          value={genre}
-          onChange={(e) => setGenre(e.target.value)}
-        />
-        <button className="add-btn" type="submit">Add to queue</button>
-      </form>
+      <AddItemForm
+        title={title}
+        onTitleChange={setTitle}
+        type={type}
+        onTypeChange={setType}
+        year={year}
+        onYearChange={setYear}
+        genre={genre}
+        onGenreChange={setGenre}
+        onSubmit={addManual}
+      />
 
-      <div className="filter-row">
-        <button
-          className={'filter-pill' + (typeFilter === 'all' ? ' filter-pill--active' : '')}
-          onClick={() => setTypeFilter('all')}
-        >
-          All types · {items.length}
-        </button>
-        {TYPES.map((t) => (
-          <button
-            key={t.id}
-            className={'filter-pill filter-pill--' + t.id + (typeFilter === t.id ? ' filter-pill--active' : '')}
-            onClick={() => setTypeFilter(t.id)}
-          >
-            {t.label} · {items.filter((i) => i.type === t.id).length}
-          </button>
-        ))}
-      </div>
-
-      <div className="filter-row">
-        <button
-          className={'filter-pill' + (statusFilter === 'all' ? ' filter-pill--active' : '')}
-          onClick={() => setStatusFilter('all')}
-        >
-          All statuses
-        </button>
-        {STATUSES.map((s) => (
-          <button
-            key={s.id}
-            className={'filter-pill filter-pill--status-' + s.id + (statusFilter === s.id ? ' filter-pill--active' : '')}
-            onClick={() => setStatusFilter(s.id)}
-          >
-            {s.label} · {items.filter((i) => i.status === s.id).length}
-          </button>
-        ))}
-        {genres.length > 0 && (
-          <select
-            className="genre-filter-select"
-            value={genreFilter}
-            onChange={(e) => setGenreFilter(e.target.value)}
-          >
-            <option value="all">All genres</option>
-            {genres.map((g) => (
-              <option key={g} value={g}>{g}</option>
-            ))}
-          </select>
-        )}
-      </div>
+      <FilterBar
+        items={items}
+        typeFilter={typeFilter}
+        onTypeFilterChange={setTypeFilter}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        genreFilter={genreFilter}
+        onGenreFilterChange={setGenreFilter}
+        genres={genres}
+      />
 
       {loading ? (
         <div className="empty-state">
@@ -647,89 +492,19 @@ export default function App() {
         </div>
       ) : (
         <div className="ticket-grid">
-          {visible.map((item) => (
-            <article
-              className={'ticket ticket--' + item.type}
+          {visible.map((item, index) => (
+            <TicketCard
               key={item.id}
-              ref={(el) => {
-                if (el) ticketRefs.current.set(item.id, el)
-                else ticketRefs.current.delete(item.id)
-              }}
-              onClick={() => setActiveItemId(item.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setActiveItemId(item.id)
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              aria-label={`View details for ${item.title}`}
-            >
-              <div className="ticket-stub">
-                <span className="ticket-stub-code">{initials(item.type)}</span>
-                <span className="ticket-stub-admit">ADMIT ONE</span>
-              </div>
-              <div className="ticket-perf" aria-hidden="true" />
-              <div className="ticket-body">
-                {item.poster && (
-                  <>
-                    <img className="ticket-bg-poster" src={item.poster} alt="" aria-hidden="true" />
-                    <div className="ticket-bg-overlay" aria-hidden="true" />
-                  </>
-                )}
-                <div className="ticket-content">
-                  <div className="ticket-body-top">
-                    <span className="ticket-type">{TYPES.find((t) => t.id === item.type)?.label}</span>
-                    <div className="ticket-order">
-                      <button
-                        className="ticket-order-btn ticket-order-btn--up"
-                        onClick={(e) => { e.stopPropagation(); moveItem(item.id, 'up') }}
-                        disabled={visible.findIndex((i) => i.id === item.id) === 0}
-                        aria-label={`Move ${item.title} up`}
-                      >
-                        <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
-                          <path d="M2 7.5L6 3.5L10 7.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                      <button
-                        className="ticket-order-btn ticket-order-btn--down"
-                        onClick={(e) => { e.stopPropagation(); moveItem(item.id, 'down') }}
-                        disabled={visible.findIndex((i) => i.id === item.id) === visible.length - 1}
-                        aria-label={`Move ${item.title} down`}
-                      >
-                        <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
-                          <path d="M2 4.5L6 8.5L10 4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                    </div>
-                    <button
-                      className="ticket-remove"
-                      onClick={(e) => { e.stopPropagation(); setPendingDelete(item) }}
-                      aria-label={`Remove ${item.title}`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <h2 className="ticket-name">{item.title}</h2>
-                  <div className="ticket-meta">
-                    {item.year && <span>{item.year}</span>}
-                    {item.year && item.genre && <span className="ticket-meta-dot">•</span>}
-                    {item.genre && <span>{item.genre}</span>}
-                  </div>
-                  <select
-                    className={'status-select status-select--' + item.status}
-                    value={item.status}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => changeStatus(item.id, e.target.value)}
-                  >
-                    {STATUSES.map((s) => (
-                      <option key={s.id} value={s.id} style={{ color: s.color }}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </article>
+              item={item}
+              ticketRefs={ticketRefs}
+              isFirst={index === 0}
+              isLast={index === visible.length - 1}
+              onOpen={setActiveItemId}
+              onMoveUp={(id) => moveItem(id, 'up')}
+              onMoveDown={(id) => moveItem(id, 'down')}
+              onRemove={setPendingDelete}
+              onChangeStatus={changeStatus}
+            />
           ))}
         </div>
       )}

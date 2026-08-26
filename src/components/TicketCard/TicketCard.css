@@ -1,0 +1,213 @@
+.ticket {
+  display: flex;
+  background: var(--surface);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  position: relative;
+  will-change: transform;
+  cursor: pointer;
+}
+
+.ticket:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.ticket-stub {
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 0;
+  color: #17110a;
+}
+
+.ticket--movie .ticket-stub { background: var(--gold); }
+.ticket--series .ticket-stub { background: var(--teal); }
+.ticket--anime .ticket-stub { background: var(--crimson); }
+
+.ticket-stub { position: relative; }
+
+.ticket-body {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  padding: 16px 16px 16px 18px;
+  min-width: 0;
+}
+
+.ticket-bg-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.24;
+  z-index: 0;
+}
+
+.ticket-bg-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.ticket-content {
+  position: relative;
+  z-index: 2;
+}
+
+.ticket-stub-code {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.ticket-stub-admit {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  opacity: 0.75;
+}
+
+.ticket-perf {
+  width: 0;
+  border-left: 2px dashed rgba(237, 234, 224, 0.25);
+  position: relative;
+}
+
+.ticket-perf::before,
+.ticket-perf::after {
+  content: '';
+  position: absolute;
+  left: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg);
+}
+.ticket-perf::before { top: -7px; }
+.ticket-perf::after { bottom: -7px; }
+
+.ticket-body-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ticket-order {
+  display: flex;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.ticket-order-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  line-height: 1;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.ticket-order-btn svg { display: block; }
+
+.ticket-order-btn:hover:not(:disabled) {
+  color: var(--gold);
+  border-color: var(--gold-dim);
+  background: var(--surface);
+}
+
+.ticket-order-btn:active:not(:disabled) { transform: scale(0.88); }
+
+.ticket-order-btn:focus-visible {
+  outline: none;
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+.ticket-order-btn:disabled { opacity: 0.28; cursor: default; }
+
+.ticket-type {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.ticket-remove {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.ticket-remove:hover { color: var(--crimson); }
+
+.ticket-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 26px;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+  margin: 0 0 8px;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ticket-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  gap: 6px;
+}
+
+.ticket-meta-dot { opacity: 0.5; }
+
+.status-select {
+  margin-top: 12px;
+  width: 100%;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border-radius: 6px;
+  padding: 7px 8px;
+  outline: none;
+  cursor: pointer;
+}
+
+.status-select--planned { color: var(--gold); border-color: var(--gold-dim); }
+.status-select--watching { color: var(--teal); border-color: var(--teal-dim); }
+.status-select--done { color: var(--green); border-color: var(--green-dim); }
+.status-select--dropped { color: var(--crimson); border-color: var(--crimson-dim); }
+
+@media (max-width: 640px) {
+  .ticket-stub { width: 44px; }
+  .ticket-name { font-size: 22px; }
+  .ticket-body { padding: 14px 14px 14px 16px; }
+}

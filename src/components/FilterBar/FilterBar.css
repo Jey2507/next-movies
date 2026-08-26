@@ -1,0 +1,58 @@
+.filter-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.filter-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+
+.filter-pill--active {
+  color: var(--bg);
+  background: var(--text);
+  border-color: var(--text);
+}
+
+.filter-pill--movie { color: var(--gold); border-color: var(--gold-dim); }
+.filter-pill--series { color: var(--teal); border-color: var(--teal-dim); }
+.filter-pill--anime { color: var(--crimson); border-color: var(--crimson-dim); }
+.filter-pill--status-planned { color: var(--gold); border-color: var(--gold-dim); }
+.filter-pill--status-watching { color: var(--teal); border-color: var(--teal-dim); }
+.filter-pill--status-done { color: var(--green); border-color: var(--green-dim); }
+.filter-pill--status-dropped { color: var(--crimson); border-color: var(--crimson-dim); }
+
+.filter-pill--movie.filter-pill--active { background: var(--gold); border-color: var(--gold); color: #201705; }
+.filter-pill--series.filter-pill--active { background: var(--teal); border-color: var(--teal); color: #0b211d; }
+.filter-pill--anime.filter-pill--active { background: var(--crimson); border-color: var(--crimson); color: #380f09; }
+.filter-pill--status-planned.filter-pill--active { background: var(--gold); border-color: var(--gold); color: #201705; }
+.filter-pill--status-watching.filter-pill--active { background: var(--teal); border-color: var(--teal); color: #0b211d; }
+.filter-pill--status-done.filter-pill--active { background: var(--green); border-color: var(--green); color: #0e2417; }
+.filter-pill--status-dropped.filter-pill--active { background: var(--crimson); border-color: var(--crimson); color: #380f09; }
+
+.genre-filter-select {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: var(--surface);
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.genre-filter-select:focus { border-color: var(--gold); }
+
+@media (max-width: 640px) {
+  .filter-row { gap: 6px; }
+  .filter-pill { font-size: 11px; padding: 6px 11px; }
+}

@@ -16,6 +16,36 @@ Supabase client is in src/supabaseClient.js.
 - TMDB API
 - Vercel
 
+## File map (read this instead of globbing/exploring)
+
+Each component owns one folder: `src/components/<Name>/<Name>.jsx` + `<Name>.css` — nothing else lives in that folder. Jump straight to the file(s) for the topic instead of reading the whole tree.
+
+| Topic | File(s) |
+|---|---|
+| Main app shell/state only — search, filters, ticket list, and the add-form are separate components below | `src/App.jsx` (+ `src/App.css`) |
+| Global/base styles, CSS variables | `src/index.css` |
+| Static config + lookup tables (TMDB key/img base, TYPES, STATUSES, GENRE_NAMES, SEED) | `src/constants.js` |
+| localStorage fallback for `items` (normalize positions, load/save) | `src/itemsStorage.js` |
+| TMDB search-result → item shape (`guessType`, `firstGenre`) | `src/tmdbResults.js` |
+| Supabase client init | `src/supabaseClient.js` |
+| Auth session state (sign in/out, 2-week inactivity auto-logout) | `src/useAuth.js` |
+| Shared/personal lists (create, join by code, switch) | `src/useLists.js` |
+| Per-author note attribution (diff/rebase colored note segments) | `src/noteSegments.js` |
+| Per-author note color palette (deterministic hue per name/list) | `src/noteAuthorColors.js` |
+| TMDB extra-details fetch hook, used only by DetailModal | `src/useTmdbDetails.js` |
+| DB schema, RLS policies, `handle_new_user` trigger | `src/schema.sql` |
+| Item detail modal (TMDB extra info, notes editing) | `src/components/DetailModal/` |
+| Delete confirmation guard (used by `removeItem`) | `src/components/ConfirmDeleteModal/` |
+| Generic confirm-before-you-act dialog (non-destructive, e.g. sign out) | `src/components/ConfirmModal/` |
+| Sign in / sign up screen | `src/components/AuthScreen/` |
+| Switch between personal/shared lists, join-by-code UI | `src/components/ListSwitcher/` |
+| TMDB title search input + results dropdown | `src/components/SearchBox/` |
+| Manual "add to queue" form | `src/components/AddItemForm/` |
+| Type/status/genre filter pills above the ticket grid | `src/components/FilterBar/` |
+| One cinema-ticket card (poster, reorder buttons, status select) | `src/components/TicketCard/` |
+
+Only open files outside this table (or grep) when a task isn't covered by it.
+
 ## Core data model
 
 {
@@ -53,8 +83,17 @@ IMPORTANT: never expose or copy API keys into documentation. The current TMDB ke
 
 ## Components
 
-- `src/components/DetailModal.jsx` (+ `.css`) — item detail modal, opened by clicking a ticket card. Fetches extra info from TMDB.
-- `src/components/ConfirmDeleteModal.jsx` (+ `.css`) — confirmation modal shown before an item is actually removed. It's the accidental-tap guard in front of `removeItem` in App.jsx: the ticket's × button no longer deletes directly, it sets `pendingDelete`, and this modal's confirm action calls `removeItem`. Reuse this pattern for any other destructive action instead of adding a new bespoke confirm dialog.
+Each lives in its own folder under `src/components/` (see File map above) — e.g. `src/components/DetailModal/DetailModal.jsx` + `DetailModal.css`.
+
+- `DetailModal/` — item detail modal, opened by clicking a ticket card. Fetches extra info from TMDB (via `useTmdbDetails.js`) and colors shared notes by author (via `noteAuthorColors.js`).
+- `ConfirmDeleteModal/` — confirmation modal shown before an item is actually removed. It's the accidental-tap guard in front of `removeItem` in App.jsx: the ticket's × button no longer deletes directly, it sets `pendingDelete`, and this modal's confirm action calls `removeItem`. Reuse this pattern for any other destructive action instead of adding a new bespoke confirm dialog.
+- `ConfirmModal/` — generic version of the same accidental-tap guard, for non-destructive but disruptive actions (e.g. sign out), gated by a `tone` prop instead of delete-specific copy/styling.
+- `AuthScreen/` — sign in / sign up screen.
+- `ListSwitcher/` — switch between personal/shared lists, join-by-code UI.
+- `SearchBox/` — TMDB title search input + results dropdown. Presentational; the debounced fetch lives in App.jsx.
+- `AddItemForm/` — manual "add to queue" form (title/type/year/genre).
+- `FilterBar/` — type/status/genre filter pills above the ticket grid.
+- `TicketCard/` — one cinema-ticket card in the grid; registers itself into App.jsx's `ticketRefs` map for the FLIP reorder animation there.
 
 ## UI
 
@@ -123,3 +162,12 @@ When requirements conflict, prioritize:
 2. Existing application behavior
 3. Existing project conventions
 4. This file
+
+## Architecture changelog
+
+Log structural changes here (moved/renamed files, new folders/conventions) — not feature changes, those are in git history. Newest first.
+
+- 2026-08-26 — Moved each `src/components/*` file pair into its own folder (`src/components/<Name>/<Name>.jsx` + `.css`), so a component's own files are the only two files in its folder. Added the File map above. When adding a new component, follow this pattern: create `src/components/<Name>/<Name>.jsx` + `<Name>.css`, import as `./components/<Name>/<Name>` from App.jsx.
+- 2026-08-26 — Split up the two largest files so each can be read in part instead of whole:
+  - `App.jsx` (788 → 563 lines): pulled pure logic out into `src/constants.js`, `src/itemsStorage.js`, `src/tmdbResults.js`; extracted four new presentational components — `SearchBox/`, `AddItemForm/`, `FilterBar/`, `TicketCard/` — with their CSS moved out of `App.css` into each one's own `.css` (App.css keeps only the app-shell/layout rules that are still in App.jsx: `.queue-app`, header, `.empty-state`, `.ticket-grid` container).
+  - `DetailModal.jsx` (608 → 482 lines): pulled the author-color palette logic out into `src/noteAuthorColors.js` and the TMDB-details fetch hook into `src/useTmdbDetails.js` (JSX itself wasn't split further — it's tightly coupled to the poster-zoom/notes-panel state machines in DetailModal, splitting it would add prop-drilling risk for little gain).
