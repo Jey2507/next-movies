@@ -273,15 +273,39 @@
   color: var(--text-dim);
 }
 
-.modal-notes-meta {
+.modal-notes-meta-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   margin: -4px 0 0;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--text-dim);
   flex-shrink: 0;
 }
 
+.modal-notes-meta {
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 .modal-notes-author {
+  font-weight: 600;
+}
+
+/* Sits at the same line as "Last edited by ...", pushed to the right —
+   one colored name per list member, in the same color their own writing
+   in the note below gets (see authorColor in DetailModal.jsx). */
+.modal-notes-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-left: auto;
+}
+
+.modal-notes-legend-item {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -303,6 +327,49 @@
 .modal-notes-input::placeholder { color: var(--text-dim); }
 
 .modal-notes-input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+/* Shared notes only: a textarea can't render multiple text colors, so the
+   real per-author colored text is drawn in .modal-notes-highlight, a div
+   the same size/font/padding sitting behind the textarea, which itself
+   goes fully transparent (text and border) except for its caret/selection.
+   Both layers must scroll in lockstep — see handleNotesScroll. */
+.modal-notes-input-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 80px;
+}
+
+.modal-notes-highlight,
+.modal-notes-input--overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.modal-notes-highlight {
+  overflow: auto;
+  pointer-events: none;
+}
+
+.modal-notes-input--overlay {
+  resize: none;
+  border-color: transparent;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+}
+
+.modal-notes-input--overlay::placeholder { color: var(--text-dim); }
+
+.modal-notes-input--overlay:focus {
   outline: none;
   border-color: var(--gold);
 }

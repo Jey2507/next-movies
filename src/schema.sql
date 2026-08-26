@@ -108,6 +108,13 @@ alter table items add column if not exists notes text;
 -- never reach other members' screens without an extra round trip.
 alter table items add column if not exists notes_updated_by_name text;
 alter table items add column if not exists notes_updated_at timestamptz;
+-- Auxiliary breakdown of `notes` into per-author runs — [{author, text}, ...]
+-- whose `text` fields concatenate back to the same string as `notes` — so
+-- DetailModal can render each contributor's words in their own color
+-- instead of recoloring the whole note to whoever saved last. Derived and
+-- rebuilt client-side on every save (see src/noteSegments.js); `notes`
+-- itself remains the single source of truth if this ever falls out of sync.
+alter table items add column if not exists notes_segments jsonb;
 
 -- =========================================================
 -- STEP 2: invite code generation (trigger, on lists insert)

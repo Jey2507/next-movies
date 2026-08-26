@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './DetailModal.css'
+import { diffNoteSegments, committedNoteSegments } from '../noteSegments'
 
 const NOTES_SAVE_DELAY = 600
 
@@ -15,17 +16,80 @@ const TYPE_LABELS = {
   anime: 'Anime',
 }
 
-// Deterministic per-author color for shared notes: the same person's name
-// (and the note text they last wrote) always render in the same hue, so on
-// a shared list it's easy to tell at a glance who left the current note.
-function authorColor(name) {
-  if (!name) return null
+// Ordered by binary subdivision of the color wheel — 1st hue, then its
+// exact opposite at +180°, then the two hues that bisect those halves (each
+// again paired with its own opposite), and so on — so the most common case,
+// two people, always lands on true complements (the strongest contrast the
+// wheel has), and every extra person keeps splitting the widest remaining
+// gap instead of crowding in next to a color already in use.
+const HUE_STEPS = [0, 180, 90, 270, 45, 225, 135, 315]
+// Colors already used elsewhere in the UI (gold accents, crimson danger) —
+// a list's rotation gets nudged away from these so an author's color never
+// lands on top of one.
+const ACCENT_HUES = [40, 7]
+const ACCENT_GAP = 25
+
+function hueDistance(a, b) {
+  const d = Math.abs(a - b) % 360
+  return d > 180 ? 360 - d : d
+}
+
+function hashString(s) {
   let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) | 0
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash * 31 + s.charCodeAt(i)) | 0
   }
-  const hue = Math.abs(hash) % 360
-  return `hsl(${hue}, 65%, 68%)`
+  return Math.abs(hash)
+}
+
+// Every list gets its own rotation of the same wheel — hashed from the
+// list's own id, so colors look different from one shared list to the next
+// (not every list is the same green-vs-violet pair) while staying identical
+// for everyone looking at that list, and stable across reloads. The
+// complementary-pairs structure above survives any rotation, since rotating
+// the whole wheel doesn't change the angles between hues on it.
+function paletteRotationFor(listKey) {
+  let rotation = listKey ? hashString(String(listKey)) % 360 : 0
+  for (let tries = 0; tries < 360; tries += 7) {
+    const clash = HUE_STEPS.some((step) =>
+      ACCENT_HUES.some((accent) => hueDistance((step + rotation) % 360, accent) < ACCENT_GAP)
+    )
+    if (!clash) return rotation
+    rotation = (rotation + 7) % 360
+  }
+  return rotation
+}
+
+// Blues/violets read darker than yellows/greens at the same lightness —
+// nudged per-hue so every color on the wheel reads similarly bright against
+// the app's dark background, instead of some looking washed out and others
+// dim, no matter where a list's rotation lands them.
+function lightnessForHue(hue) {
+  if (hue > 40 && hue < 100) return 52
+  if (hue >= 200 && hue < 280) return 68
+  return 60
+}
+
+function colorAt(index, rotation) {
+  const hue = (HUE_STEPS[index % HUE_STEPS.length] + rotation) % 360
+  return `hsl(${hue}, 65%, ${lightnessForHue(hue)}%)`
+}
+
+// Deterministic per-author color for shared notes: the same person's name
+// (and the note text they last wrote) always render in the same color, so
+// on a shared list it's easy to tell at a glance who left the current note.
+// Picks by position in the list's member roster when available, so every
+// *current* member gets a distinct, well-spaced color — falls back to
+// hashing the name into the same wheel (still distinct-looking, just not
+// guaranteed unique) for a name that isn't a current member, e.g. someone
+// who has since left, or no roster is available.
+function authorColor(name, memberNames, rotation) {
+  if (!name) return null
+  if (Array.isArray(memberNames)) {
+    const idx = memberNames.indexOf(name)
+    if (idx !== -1) return colorAt(idx, rotation)
+  }
+  return colorAt(hashString(name), rotation)
 }
 
 // Fetches extra info (overview, seasons, runtime, ...) from TMDB for the
@@ -80,10 +144,13 @@ function useTmdbDetails(item, apiKey) {
   return { details, loading, error }
 }
 
-export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal, onSaveNotes }) {
+export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal, onSaveNotes, memberNames, viewerName, listId }) {
   const { details, loading, error } = useTmdbDetails(item, apiKey)
   const posterRef = useRef(null)
   const modalCardRef = useRef(null)
+  // Backdrop layer behind the (visually transparent) notes textarea that
+  // renders the actual, per-author colored text — see the notes panel JSX.
+  const notesHighlightRef = useRef(null)
   // Poster zoom is a small state machine so the enlarge/return animation can
   // run in two steps: 'opening' pins the image at its exact original spot
   // (via position: fixed, so it can escape the modal's own scroll clipping)
@@ -149,6 +216,15 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
     pendingNotesRef.current = { id, value }
     if (notesSaveTimer.current) clearTimeout(notesSaveTimer.current)
     notesSaveTimer.current = setTimeout(flushPendingNotes, NOTES_SAVE_DELAY)
+  }
+
+  // Keeps the colored backdrop layer scrolled in step with the (invisible)
+  // textarea text on top of it — see the notes panel JSX.
+  function handleNotesScroll(e) {
+    if (notesHighlightRef.current) {
+      notesHighlightRef.current.scrollTop = e.target.scrollTop
+      notesHighlightRef.current.scrollLeft = e.target.scrollLeft
+    }
   }
 
   // Pick up notes changes that arrive from elsewhere (another shared-list
@@ -233,7 +309,14 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
 
   const isTv = item.type === 'series' || item.type === 'anime'
   const poster = item.poster || (details?.poster_path ? imgBase + details.poster_path : null)
-  const noteAuthorColor = !isPersonal ? authorColor(item.notes_updated_by_name) : null
+  const paletteRotation = paletteRotationFor(listId)
+  const noteAuthorColor = !isPersonal ? authorColor(item.notes_updated_by_name, memberNames, paletteRotation) : null
+  // Re-diffed on every render against whatever's currently committed, so
+  // the still-unsaved text in notesDraft is already colored by who's typing
+  // it — not just the last flushed save (see noteSegments.js).
+  const noteSegments = !isPersonal
+    ? diffNoteSegments(committedNoteSegments(item), notesDraft, viewerName || null)
+    : null
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -386,23 +469,64 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
               ×
             </button>
           </div>
-          {!isPersonal && item.notes_updated_by_name && (
-            <p className="modal-notes-meta">
-              Last edited by{' '}
-              <span className="modal-notes-author" style={noteAuthorColor ? { color: noteAuthorColor } : undefined}>
-                {item.notes_updated_by_name}
-              </span>
-              {item.notes_updated_at ? ` · ${new Date(item.notes_updated_at).toLocaleString()}` : ''}
-            </p>
+          {!isPersonal && (item.notes_updated_by_name || memberNames?.length > 0) && (
+            <div className="modal-notes-meta-row">
+              {item.notes_updated_by_name && (
+                <p className="modal-notes-meta">
+                  Last edited by{' '}
+                  <span className="modal-notes-author" style={noteAuthorColor ? { color: noteAuthorColor } : undefined}>
+                    {item.notes_updated_by_name}
+                  </span>
+                  {item.notes_updated_at ? ` · ${new Date(item.notes_updated_at).toLocaleString()}` : ''}
+                </p>
+              )}
+              {memberNames?.length > 0 && (
+                <div className="modal-notes-legend">
+                  {memberNames.map((name) => (
+                    <span key={name} className="modal-notes-legend-item" style={{ color: authorColor(name, memberNames, paletteRotation) }}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
-          <textarea
-            className="modal-notes-input"
-            style={noteAuthorColor ? { color: noteAuthorColor } : undefined}
-            placeholder={isPersonal ? 'Add a note for yourself…' : 'Add a note or comment for the list…'}
-            value={notesDraft}
-            onChange={handleNotesChange}
-            onBlur={flushPendingNotes}
-          />
+          {isPersonal ? (
+            <textarea
+              className="modal-notes-input"
+              placeholder="Add a note for yourself…"
+              value={notesDraft}
+              onChange={handleNotesChange}
+              onBlur={flushPendingNotes}
+            />
+          ) : (
+            // A native textarea can't render multiple text colors, so the
+            // real, per-author colored text is drawn in a same-size div
+            // behind it (see .modal-notes-input-wrap) while the textarea on
+            // top goes fully transparent except for its caret/selection —
+            // it still handles all typing, IME, and selection normally.
+            <div className="modal-notes-input-wrap">
+              <div ref={notesHighlightRef} className="modal-notes-input modal-notes-highlight" aria-hidden="true">
+                {noteSegments.length > 0
+                  ? noteSegments.map((seg, i) => (
+                      <span key={i} style={{ color: authorColor(seg.author, memberNames, paletteRotation) || 'inherit' }}>
+                        {seg.text}
+                      </span>
+                    ))
+                  : null}
+                {/* Keeps a trailing newline from collapsing so the backdrop's height still matches the textarea. */}
+                {notesDraft.endsWith('\n') ? '​' : null}
+              </div>
+              <textarea
+                className="modal-notes-input modal-notes-input--overlay"
+                placeholder="Add a note or comment for the list…"
+                value={notesDraft}
+                onChange={handleNotesChange}
+                onBlur={flushPendingNotes}
+                onScroll={handleNotesScroll}
+              />
+            </div>
+          )}
         </div>
 
         <button

@@ -8,6 +8,7 @@ import ConfirmDeleteModal from './components/ConfirmDeleteModal'
 import ConfirmModal from './components/ConfirmModal'
 import AuthScreen from './components/AuthScreen'
 import ListSwitcher from './components/ListSwitcher'
+import { diffNoteSegments, committedNoteSegments } from './noteSegments'
 
 // Get a free key at https://www.themoviedb.org/settings/api and paste it below.
 const TMDB_API_KEY = '4f5ec21ec83179db03e267a97d8f594d'
@@ -317,8 +318,13 @@ export default function App() {
   // when, so DetailModal can show "Last edited by ..." on shared lists (see
   // schema.sql). Stamped on every save, including on a personal list, even
   // though it's not shown there — harmless, and one code path either way.
+  // notes_segments re-attributes just the part of the text that actually
+  // changed to this save's author, instead of recoloring the whole note —
+  // see noteSegments.js.
   async function updateNotes(id, notes) {
-    const stamp = { notes, notes_updated_by_name: displayName || null, notes_updated_at: new Date().toISOString() }
+    const prevItem = items.find((i) => i.id === id)
+    const notes_segments = diffNoteSegments(committedNoteSegments(prevItem), notes, displayName || null)
+    const stamp = { notes, notes_segments, notes_updated_by_name: displayName || null, notes_updated_at: new Date().toISOString() }
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...stamp } : i)))
     if (isSupabaseConfigured) await supabase.from('items').update(stamp).eq('id', id)
   }
@@ -676,6 +682,9 @@ export default function App() {
         imgBase={TMDB_IMG}
         isPersonal={!isSupabaseConfigured || !!activeList?.is_personal}
         onSaveNotes={updateNotes}
+        memberNames={activeList?.memberNames}
+        viewerName={displayName}
+        listId={activeListId}
       />
 
       <ConfirmDeleteModal
