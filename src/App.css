@@ -153,6 +153,32 @@ body {
   text-align: center;
 }
 
+/* Shared loading spinner — used anywhere something's still in flight
+   (initial item load here, TMDB search in SearchBox, TMDB detail fetch in
+   DetailModal) so a wait always reads the same way instead of a bare
+   "Loading…" that looks like static, possibly-stuck text. */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+  flex-shrink: 0;
+}
+
+.empty-state .spinner {
+  width: 22px;
+  height: 22px;
+  border-width: 2.5px;
+  margin: 0 auto 14px;
+}
+
 .empty-title {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 26px;

@@ -7,11 +7,22 @@ function initials(type) {
   return 'ANI'
 }
 
+// Average of item.ratings — see schema.sql's `ratings` column (one entry
+// per rater, {authorName: 1-5, ...}). Null when nobody's rated it yet, so
+// the card's meta row can just skip the badge.
+function averageRating(ratings) {
+  if (!ratings) return null
+  const values = Object.values(ratings).filter((v) => typeof v === 'number' && v > 0)
+  if (!values.length) return null
+  return values.reduce((sum, v) => sum + v, 0) / values.length
+}
+
 // One cinema-ticket card in the grid. `ticketRefs` is App.jsx's
 // `useRef(new Map())` — registering/unregistering this card's DOM node into
 // it is what drives the FLIP reorder animation there (see the
 // useLayoutEffect keyed on `orderKey`).
 export default function TicketCard({ item, ticketRefs, isFirst, isLast, onOpen, onMoveUp, onMoveDown, onRemove, onChangeStatus }) {
+  const avgRating = averageRating(item.ratings)
   return (
     <article
       className={'ticket ticket--' + item.type}
@@ -80,6 +91,8 @@ export default function TicketCard({ item, ticketRefs, isFirst, isLast, onOpen, 
             {item.year && <span>{item.year}</span>}
             {item.year && item.genre && <span className="ticket-meta-dot">•</span>}
             {item.genre && <span>{item.genre}</span>}
+            {avgRating != null && (item.year || item.genre) && <span className="ticket-meta-dot">•</span>}
+            {avgRating != null && <span className="ticket-meta-rating">★ {avgRating.toFixed(1)}</span>}
           </div>
           <select
             className={'status-select status-select--' + item.status}

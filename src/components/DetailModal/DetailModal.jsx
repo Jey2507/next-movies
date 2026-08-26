@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './DetailModal.css'
 import { diffNoteSegments, committedNoteSegments } from '../../noteSegments'
 import { paletteRotationFor, authorColor } from '../../noteAuthorColors'
@@ -18,7 +18,7 @@ const TYPE_LABELS = {
   anime: 'Anime',
 }
 
-export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal, onSaveNotes, memberNames, viewerName, listId }) {
+export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal, onSaveNotes, onRate, memberNames, viewerName, listId }) {
   const { details, loading, error } = useTmdbDetails(item, apiKey)
   const posterRef = useRef(null)
   const modalCardRef = useRef(null)
@@ -93,6 +93,12 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
   // notices that transition, and by then a render-phase reset (below) may
   // have already pointed notesForItem/notesDraft at the new item.
   const pendingNotesRef = useRef(null)
+  // Short cooldown lock for the rating stars — see handleRate below.
+  const ratingClickRef = useRef(false)
+  // Card height from the *previous* commit, and whether the modal was
+  // already open then — see the FLIP-style height transition below.
+  const cardHeightRef = useRef(null)
+  const wasOpenRef = useRef(false)
 
   function flushPendingNotes() {
     if (notesSaveTimer.current) {
@@ -227,6 +233,54 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [item, onClose, zoomPhase, notesOpen])
 
+  // Smooths over *any* height change of the card itself — the skeleton's
+  // guessed height never exactly matches the real overview/facts once they
+  // arrive (a short overview vs. a long one, a movie vs. a show with more
+  // fact boxes, ...), and no amount of tuning the skeleton's size closes
+  // that gap for every title. Rather than chase each individual cause, this
+  // just animates *whatever* the delta turns out to be, same FLIP technique
+  // already used for the ticket-grid reorder in App.jsx: pin the card at
+  // its previous (already-painted) height with no transition, force a
+  // reflow so that's the frame that actually paints, then transition to the
+  // new height. Runs after every commit (no dependency array) so it also
+  // covers switching between items, not just the loading -> loaded swap.
+  useLayoutEffect(() => {
+    const el = modalCardRef.current
+    if (!el) {
+      // Modal just closed (or hasn't opened yet) — the next open creates a
+      // brand-new card element with its own entrance animation, not a
+      // resize of an element that's been on screen, so it shouldn't get
+      // this treatment. See the wasOpenRef check below.
+      wasOpenRef.current = false
+      return
+    }
+    const prevHeight = cardHeightRef.current
+    const newHeight = el.getBoundingClientRect().height
+    if (wasOpenRef.current && prevHeight != null && Math.abs(newHeight - prevHeight) > 1) {
+      el.style.transition = 'none'
+      el.style.overflow = 'hidden'
+      el.style.height = prevHeight + 'px'
+      el.getBoundingClientRect() // force reflow before animating away from this
+      requestAnimationFrame(() => {
+        el.style.transition = 'height 260ms cubic-bezier(0.22, 1, 0.36, 1)'
+        el.style.height = newHeight + 'px'
+      })
+      const onDone = (e) => {
+        if (e.target !== el || e.propertyName !== 'height') return
+        // Back to the stylesheet's own height/overflow-y: auto — a fixed
+        // inline height would otherwise also cap any *future* growth (e.g.
+        // typing a long note) at today's content height.
+        el.style.transition = ''
+        el.style.height = ''
+        el.style.overflow = ''
+        el.removeEventListener('transitionend', onDone)
+      }
+      el.addEventListener('transitionend', onDone)
+    }
+    cardHeightRef.current = newHeight
+    wasOpenRef.current = true
+  })
+
   if (!item) return null
 
   const isTv = item.type === 'series' || item.type === 'anime'
@@ -241,6 +295,37 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
   const noteSegments = !isPersonal
     ? diffNoteSegments(committedNoteSegments(noteBase), notesDraft, viewerName || null)
     : null
+
+  // Ratings: { authorName: 1-5, ... } — see schema.sql's `ratings` column.
+  // Keyed the same way rateItem in App.jsx writes it, so `myRating` below
+  // always finds this viewer's own entry.
+  const myName = viewerName || 'You'
+  const ratings = item.ratings || {}
+  const ratingEntries = Object.entries(ratings).filter(([, v]) => typeof v === 'number' && v > 0)
+  const ratingCount = ratingEntries.length
+  const ratingAverage = ratingCount
+    ? ratingEntries.reduce((sum, [, v]) => sum + v, 0) / ratingCount
+    : null
+  const myRating = ratings[myName] || 0
+  // Falls back to just whoever's actually rated if memberNames isn't
+  // populated for some reason — still correct, just loses the "stable
+  // regardless of who's rated" guarantee that having the full roster gives.
+  const ratingMemberNames = memberNames?.length ? memberNames : ratingEntries.map(([name]) => name)
+
+  function handleRate(value) {
+    if (!onRate) return
+    // Guards against a double-fired click (e.g. an accidental double click,
+    // or a stray duplicate event) landing as two calls in quick succession —
+    // without this, the second call would see the same pre-click myRating
+    // as the first (this render hasn't updated yet) and immediately toggle
+    // the star straight back off, which reads as the rating flickering.
+    if (ratingClickRef.current) return
+    ratingClickRef.current = true
+    setTimeout(() => { ratingClickRef.current = false }, 400)
+    // Clicking the star that's already your rating clears it instead of
+    // re-setting the same value — the toggle-off is the only way to unrate.
+    onRate(item.id, myRating === value ? null : value)
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -320,50 +405,140 @@ export default function DetailModal({ item, onClose, apiKey, imgBase, isPersonal
           </div>
         </div>
 
-        {loading && <p className="modal-note">Loading details…</p>}
         {!loading && error && <p className="modal-note modal-note--error">{error}</p>}
 
-        {details?.overview && <p className="modal-overview">{details.overview}</p>}
+        {/* While the TMDB fetch is in flight, reserve roughly the same
+            footprint the real overview/facts are about to take instead of
+            just an inline "Loading…" line — everything below (ratings, the
+            notes toggle) would otherwise jump down all at once the moment
+            the fetch resolves, landing wherever the pointer happens to be
+            mid-click. The fact-box count is picked from `isTv`, which is
+            already known from `item.type` — no need to wait on the fetch
+            for that part. */}
+        {loading ? (
+          <>
+            <div className="modal-overview-skeleton" aria-hidden="true">
+              <span className="modal-skeleton-bar" />
+              <span className="modal-skeleton-bar" />
+              <span className="modal-skeleton-bar" />
+              <span className="modal-skeleton-bar modal-skeleton-bar--short" />
+            </div>
+            <div className="modal-facts">
+              {(isTv ? [0, 1, 2] : [0, 1]).map((i) => (
+                <div className="modal-fact" key={i} aria-hidden="true">
+                  <span className="modal-skeleton-bar modal-skeleton-bar--label" />
+                  <span className="modal-skeleton-bar modal-skeleton-bar--value" />
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {details?.overview && <p className="modal-overview">{details.overview}</p>}
 
-        {isTv && details && (
-          <div className="modal-facts">
-            {typeof details.number_of_seasons === 'number' && (
-              <div className="modal-fact">
-                <span className="modal-fact-label">Seasons</span>
-                <span className="modal-fact-value">{details.number_of_seasons}</span>
+            {isTv && details && (
+              <div className="modal-facts">
+                {typeof details.number_of_seasons === 'number' && (
+                  <div className="modal-fact">
+                    <span className="modal-fact-label">Seasons</span>
+                    <span className="modal-fact-value">{details.number_of_seasons}</span>
+                  </div>
+                )}
+                {typeof details.number_of_episodes === 'number' && (
+                  <div className="modal-fact">
+                    <span className="modal-fact-label">Episodes</span>
+                    <span className="modal-fact-value">{details.number_of_episodes}</span>
+                  </div>
+                )}
+                {details.status && (
+                  <div className="modal-fact">
+                    <span className="modal-fact-label">Airing status</span>
+                    <span className="modal-fact-value">{details.status}</span>
+                  </div>
+                )}
               </div>
             )}
-            {typeof details.number_of_episodes === 'number' && (
-              <div className="modal-fact">
-                <span className="modal-fact-label">Episodes</span>
-                <span className="modal-fact-value">{details.number_of_episodes}</span>
+
+            {!isTv && details && (details.runtime > 0 || details.status) && (
+              <div className="modal-facts">
+                {details.runtime > 0 && (
+                  <div className="modal-fact">
+                    <span className="modal-fact-label">Runtime</span>
+                    <span className="modal-fact-value">{details.runtime} min</span>
+                  </div>
+                )}
+                {details.status && (
+                  <div className="modal-fact">
+                    <span className="modal-fact-label">Status</span>
+                    <span className="modal-fact-value">{details.status}</span>
+                  </div>
+                )}
               </div>
             )}
-            {details.status && (
-              <div className="modal-fact">
-                <span className="modal-fact-label">Airing status</span>
-                <span className="modal-fact-value">{details.status}</span>
-              </div>
-            )}
-          </div>
+          </>
         )}
 
-        {!isTv && details && (details.runtime > 0 || details.status) && (
-          <div className="modal-facts">
-            {details.runtime > 0 && (
-              <div className="modal-fact">
-                <span className="modal-fact-label">Runtime</span>
-                <span className="modal-fact-value">{details.runtime} min</span>
-              </div>
-            )}
-            {details.status && (
-              <div className="modal-fact">
-                <span className="modal-fact-label">Status</span>
-                <span className="modal-fact-value">{details.status}</span>
-              </div>
-            )}
+        <div className="modal-ratings">
+          <div className="modal-ratings-header">
+            <span className="modal-ratings-label">Your rating</span>
+            {/* Always mounted, same reasoning as modal-ratings-list below —
+                this used to only render once ratingAverage existed, so the
+                very first click on a never-rated item (0 -> 1 ratings) made
+                it pop into the row from nothing. A placeholder keeps the
+                header's height identical before and after that click. */}
+            <span className="modal-ratings-average">
+              {ratingAverage != null ? (
+                <>
+                  ★ {ratingAverage.toFixed(1)}
+                  <span className="modal-ratings-count">
+                    {' '}· {ratingCount} {ratingCount === 1 ? 'rating' : 'ratings'}
+                  </span>
+                </>
+              ) : (
+                <span className="modal-ratings-count">No ratings yet</span>
+              )}
+            </span>
           </div>
-        )}
+          <div className="modal-rating-stars" role="radiogroup" aria-label="Your rating">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={'modal-rating-star' + (n <= myRating ? ' modal-rating-star--filled' : '')}
+                onClick={() => handleRate(n)}
+                aria-label={`Rate ${n} star${n > 1 ? 's' : ''}`}
+                aria-pressed={n === myRating}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          {/* Always mounted (one entry per list member, not just per rater)
+              so this box's height depends only on the list's membership —
+              stable across a session — never on whether *this* click just
+              added or removed a rating. Listing everyone instead of just
+              who's rated is what makes that possible: an unrated member
+              still gets a (hollow) row instead of the row disappearing. */}
+          {!isPersonal && ratingMemberNames.length > 0 && (
+            <div className="modal-ratings-list">
+              {ratingMemberNames.map((name) => {
+                const value = ratings[name] || 0
+                return (
+                  <span
+                    key={name}
+                    className={'modal-ratings-member' + (value ? '' : ' modal-ratings-member--empty')}
+                    style={value ? { color: authorColor(name, memberNames, paletteRotation) } : undefined}
+                  >
+                    {name}{' '}
+                    <span className="modal-ratings-member-stars">
+                      {'★'.repeat(value)}{'☆'.repeat(5 - value)}
+                    </span>
+                  </span>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
         <div
           className={'modal-notes-panel' + (notesOpen ? ' modal-notes-panel--open' : '')}

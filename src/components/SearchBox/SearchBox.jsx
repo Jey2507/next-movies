@@ -26,7 +26,11 @@ export default function SearchBox({
       />
       {showResults && (query.trim() || searching) && (
         <div className="search-dropdown">
-          {searching && <div className="search-status">Searching…</div>}
+          {searching && (
+            <div className="search-status search-status--loading">
+              <span className="spinner" aria-hidden="true" /> Searching…
+            </div>
+          )}
           {searchError && <div className="search-status search-status--error">{searchError}</div>}
           {!searching && !searchError && query.trim() && results.length === 0 && (
             <div className="search-status">No matches. Try adding it manually below.</div>

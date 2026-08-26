@@ -186,6 +186,8 @@
 
 .ticket-meta-dot { opacity: 0.5; }
 
+.ticket-meta-rating { color: var(--gold); }
+
 .status-select {
   margin-top: 12px;
   width: 100%;

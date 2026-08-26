@@ -39,6 +39,12 @@
 
 .search-status--error { color: var(--crimson); }
 
+.search-status--loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .search-result {
   width: 100%;
   display: flex;

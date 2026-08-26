@@ -129,6 +129,19 @@ update items set notes_rev = 0 where notes_rev is null;
 alter table items alter column notes_rev set default 0;
 alter table items alter column notes_rev set not null;
 
+-- Per-member star ratings on an item — {authorName: 1..5, ...}, one entry
+-- per rater. Keyed by display_name at rating time, same reasoning as
+-- notes_updated_by_name above (items arrive over realtime as raw column
+-- values with no joins — see the live-sync effect in App.jsx). On a
+-- personal list this only ever holds the owner's own rating; on a shared
+-- list it holds one entry per member who's rated it, which is what lets
+-- DetailModal show everyone's rating alongside the group average. Written
+-- via the rate_item() RPC below, not a plain client-side update.
+alter table items add column if not exists ratings jsonb;
+update items set ratings = '{}'::jsonb where ratings is null;
+alter table items alter column ratings set default '{}'::jsonb;
+alter table items alter column ratings set not null;
+
 -- =========================================================
 -- STEP 2: invite code generation (trigger, on lists insert)
 -- =========================================================
@@ -320,6 +333,42 @@ begin
 end $$;
 
 grant execute on function create_shared_list() to authenticated;
+
+-- =========================================================
+-- STEP 7b: rate_item RPC — atomic per-author merge into items.ratings
+-- =========================================================
+-- A plain client-side `.update({ ratings: {...} })` would have to
+-- read-modify-write the whole jsonb object in JS first, which risks losing
+-- a concurrent rating from someone else the same way a naive notes save
+-- would (see notes_rev above) — except ratings doesn't need anything as
+-- involved as that: two people rating at once never touch the same key, and
+-- the merge (`||`) happens inside a single UPDATE statement, which Postgres
+-- already runs atomically, so that's all the concurrency safety this needs.
+-- security invoker (the default — no `security definer` here) means this
+-- runs as the calling user, so the existing items_update RLS policy applies
+-- exactly as it would to a direct client update.
+drop function if exists rate_item(uuid, integer);
+create or replace function rate_item(p_item_id uuid, p_rating integer)
+returns void language plpgsql as $$
+declare
+  v_name text;
+begin
+  select display_name into v_name from profiles where id = auth.uid();
+  if v_name is null then
+    raise exception 'No profile for current user';
+  end if;
+  if p_rating is null then
+    update items set ratings = coalesce(ratings, '{}'::jsonb) - v_name
+    where id = p_item_id;
+  elsif p_rating between 1 and 5 then
+    update items set ratings = coalesce(ratings, '{}'::jsonb) || jsonb_build_object(v_name, p_rating)
+    where id = p_item_id;
+  else
+    raise exception 'Rating must be between 1 and 5';
+  end if;
+end $$;
+
+grant execute on function rate_item(uuid, integer) to authenticated;
 
 -- =========================================================
 -- STEP 8: auto-delete a list once its last member leaves

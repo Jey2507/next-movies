@@ -22,12 +22,34 @@
   max-width: 460px;
   max-height: calc(100vh - 48px);
   overflow-y: auto;
+  /* Always reserves the scrollbar's own width, whether or not the content
+     actually overflows yet — without this, the moment content grows past
+     max-height (e.g. the TMDB details finishing their skeleton -> real-
+     content swap) a scrollbar appears from nothing and everything inside
+     reflows narrower by its width, on top of whatever height change
+     already happened. Falls back to nothing (default overlay scrollbar
+     behavior) on browsers that don't support it yet. */
+  scrollbar-gutter: stable;
+  /* Thin + muted instead of the OS default — Firefox. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 24px;
+  padding-bottom: 0;
   animation: modal-card-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* Same thin + muted treatment for Chrome/Safari/Edge (no scrollbar-color
+   support there). */
+.modal-card::-webkit-scrollbar { width: 8px; }
+.modal-card::-webkit-scrollbar-track { background: transparent; }
+.modal-card::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+.modal-card::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
 
 @keyframes modal-card-in {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
@@ -400,6 +422,33 @@
   margin: 0 0 16px;
 }
 
+/* Placeholder for .modal-overview while the TMDB fetch is in flight — sized
+   to roughly the same footprint as a real 3-line overview, so swapping the
+   skeleton for actual text doesn't itself add a big jump on top of the one
+   this is here to avoid. */
+.modal-overview-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.modal-skeleton-bar {
+  display: block;
+  height: 13px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--line) 25%, var(--surface) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: modal-skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.modal-overview-skeleton .modal-skeleton-bar--short { width: 60%; }
+
+@keyframes modal-skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
 .modal-facts {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -430,6 +479,104 @@
   font-weight: 600;
   color: var(--text);
 }
+
+/* Skeleton bars inside a .modal-fact box while loading — same box, same
+   padding, just placeholder content, so a fact box never changes size once
+   the real label/value replace these. */
+.modal-fact .modal-skeleton-bar--label { width: 70%; height: 9px; }
+.modal-fact .modal-skeleton-bar--value { width: 45%; height: 15px; }
+
+.modal-ratings {
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  /* Top margin, not just bottom — this can sit directly under modal-overview
+     or modal-facts (neither of which has its own bottom margin), and
+     without one of its own it reads as glued to whatever's above it. */
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-ratings-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.modal-ratings-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.modal-ratings-average {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.modal-ratings-count {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.modal-rating-stars {
+  display: flex;
+  gap: 4px;
+}
+
+.modal-rating-star {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--line);
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+/* No hover scale() here on purpose — moving the pointer across the row to
+   pick a star used to ripple each one bigger then back down as the cursor
+   passed, which read as the row itself "squeezing" right where you were
+   about to click. Color-only hover keeps the same "which star am I about
+   to pick" feedback without the size change. */
+.modal-rating-star:hover { color: var(--gold-dim); }
+.modal-rating-star--filled { color: var(--gold); }
+
+.modal-ratings-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.modal-ratings-member {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.modal-ratings-member-stars {
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+/* A list member who hasn't rated yet still gets a row (see the "always
+   mounted" comment in DetailModal.jsx) — dimmed instead of colored, so it
+   reads as "hasn't rated" rather than looking like a real (empty) rating.
+   No author color is passed inline for this case (see DetailModal.jsx), so
+   this can just set color directly instead of fighting an inline style. */
+.modal-ratings-member--empty { color: var(--text-dim); }
 
 /* Laptop/desktop: there's plenty of screen real estate, so give the modal
    more room instead of sitting at the same width used on tablet. */

@@ -118,7 +118,20 @@ export default function App() {
           }
           setItems((prev) => {
             const exists = prev.some((i) => i.id === payload.new.id)
-            if (exists) return prev.map((i) => (i.id === payload.new.id ? payload.new : i))
+            if (exists) {
+              return prev.map((i) => {
+                if (i.id !== payload.new.id) return i
+                // Skip replacing when the incoming row is identical to what's
+                // already shown — most commonly this client's own write (a
+                // rating, a status change, ...) round-tripping back through
+                // realtime a moment after the optimistic update already
+                // applied it. Without this, that harmless echo still swaps
+                // in a fresh object reference for no actual change, which
+                // shows up as a visible flicker in anything that reflows
+                // when its props change (e.g. DetailModal's ratings block).
+                return JSON.stringify(i) === JSON.stringify(payload.new) ? i : payload.new
+              })
+            }
             return [...prev, payload.new]
           })
         }
@@ -308,6 +321,32 @@ export default function App() {
     }
   }
 
+  // Star ratings on an item: { authorName: 1-5, ... }, one entry per rater —
+  // see schema.sql's `ratings` column + rate_item RPC. Keyed by display name
+  // for the same reason notes_updated_by_name is (see updateNotes above):
+  // items arrive over realtime as raw column values with no joins, so a
+  // joined name would never reach other members live. On Supabase the
+  // actual merge happens server-side in rate_item (a plain jsonb `||`,
+  // atomic inside one UPDATE, so two people rating at once can never
+  // clobber each other) — this just optimistically mirrors the same merge
+  // into local state so the UI updates instantly instead of waiting on the
+  // realtime round-trip. `value` of null clears this viewer's own rating.
+  async function rateItem(id, value) {
+    const name = displayName || 'You'
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id !== id) return i
+        const ratings = { ...(i.ratings || {}) }
+        if (value == null) delete ratings[name]
+        else ratings[name] = value
+        return { ...i, ratings }
+      })
+    )
+    if (!isSupabaseConfigured) return
+    const { error } = await supabase.rpc('rate_item', { p_item_id: id, p_rating: value })
+    if (error) console.error('rateItem failed', error)
+  }
+
   function captureRects() {
     const map = new Map()
     ticketRefs.current.forEach((el, itemId) => {
@@ -387,6 +426,7 @@ export default function App() {
     return (
       <div className="queue-app">
         <div className="empty-state">
+          <span className="spinner" aria-hidden="true" />
           <p className="empty-title">Loading…</p>
         </div>
       </div>
@@ -478,6 +518,7 @@ export default function App() {
 
       {loading ? (
         <div className="empty-state">
+          <span className="spinner" aria-hidden="true" />
           <p className="empty-title">Loading…</p>
         </div>
       ) : isSupabaseConfigured && !activeListId ? (
@@ -516,6 +557,7 @@ export default function App() {
         imgBase={TMDB_IMG}
         isPersonal={!isSupabaseConfigured || !!activeList?.is_personal}
         onSaveNotes={updateNotes}
+        onRate={rateItem}
         memberNames={activeList?.memberNames}
         viewerName={displayName}
         listId={activeListId}
