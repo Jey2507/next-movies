@@ -71,6 +71,6 @@ code,
   color: var(--text-h);
 }
 
-button, a, li, img {
+button, a, li, ul, div, img {
   -webkit-tap-highlight-color: transparent;
 }
