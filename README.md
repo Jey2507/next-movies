@@ -23,12 +23,13 @@ React · Vite · Supabase · TMDB API · plain CSS — no UI framework, no state
 
 ```bash
 npm install
+cp .env.example .env   # then fill in your keys below
 npm run dev
 ```
 
-You'll need a free [TMDB API key](https://www.themoviedb.org/settings/api) for search to work — drop it into `TMDB_API_KEY` in [src/App.jsx](src/App.jsx).
+You'll need a free [TMDB API key](https://www.themoviedb.org/settings/api) for search to work — put it in `.env` as `VITE_TMDB_API_KEY`.
 
-Supabase is optional. Without it, your queue is simply saved in the browser (`localStorage`). To sync across devices, create a free [Supabase](https://supabase.com/) project, add its URL and anon key to [src/supabaseClient.js](src/supabaseClient.js), and create an `items` table:
+Supabase is optional. Without it, your queue is simply saved in the browser (`localStorage`). To sync across devices, create a free [Supabase](https://supabase.com/) project, put its URL and anon key in `.env` as `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, and create an `items` table (or run the full schema in [src/schema.sql](src/schema.sql)):
 
 | column   | type                                      |
 | -------- | ------------------------------------------ |
@@ -63,7 +64,7 @@ src/
 
 ## Deployment
 
-Just a static Vite app — `npm run build` and deploy the `dist/` folder anywhere. Currently deployed on [Vercel](https://vercel.com/).
+Just a static Vite app — `npm run build` and deploy the `dist/` folder anywhere. Currently deployed on [Vercel](https://vercel.com/). Set `VITE_TMDB_API_KEY`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY` as environment variables in your Vercel project settings (Settings → Environment Variables) — the same names as in `.env.example`.
 
 ## Credits
 
@@ -71,4 +72,4 @@ This product uses the [TMDB API](https://www.themoviedb.org/documentation/api) b
 
 ---
 
-⚠️ If you fork this: the TMDB and Supabase keys in the source are meant for local/demo use — swap in your own before deploying publicly, and move them to environment variables rather than committing them.
+⚠️ If you fork this: copy `.env.example` to `.env` and put in your own TMDB/Supabase keys. Never commit `.env` — it's gitignored on purpose.

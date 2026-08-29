@@ -1,8 +1,9 @@
 // Static config + lookup tables shared across App.jsx and its sub-components.
 // Nothing here depends on component state — pure data only.
 
-// Get a free key at https://www.themoviedb.org/settings/api and paste it below.
-export const TMDB_API_KEY = '4f5ec21ec83179db03e267a97d8f594d'
+// Get a free key at https://www.themoviedb.org/settings/api and put it in
+// .env (VITE_TMDB_API_KEY=...) — see .env.example. Never hardcode it here.
+export const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || 'YOUR_TMDB_API_KEY'
 export const TMDB_IMG = 'https://image.tmdb.org/t/p/w200'
 // Wider, landscape-cropped TMDB image (backdrop_path, not poster_path) —
 // used for the ticket card's background image so it isn't a stretched

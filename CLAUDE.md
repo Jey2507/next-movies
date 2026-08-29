@@ -84,7 +84,7 @@ TMDB results are converted into:
 
 Do not replace TMDB unless explicitly requested.
 
-IMPORTANT: never expose or copy API keys into documentation. The current TMDB key is hard-coded in App.jsx and should eventually be moved to environment configuration.
+IMPORTANT: never expose or copy API keys into documentation. The TMDB key (and Supabase URL/anon key) live in `.env` (`VITE_TMDB_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — see `.env.example`), read via `import.meta.env` in `src/constants.js` / `src/supabaseClient.js`. `.env` is gitignored — never hardcode real keys back into source.
 
 ## Components
 
@@ -174,6 +174,7 @@ When requirements conflict, prioritize:
 
 Log structural changes here (moved/renamed files, new folders/conventions) — not feature changes, those are in git history. Newest first.
 
+- 2026-08-29 — Moved the TMDB key and Supabase URL/anon key out of source (`src/constants.js`, `src/supabaseClient.js`) into `.env` (`VITE_TMDB_API_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`), read via `import.meta.env`, in prep for making the repo public. Added `.env.example` (committed, no real values) and gitignored `.env`/`.env.*`. Both keys were previously hardcoded and committed since early history — rotate them (new TMDB key, regenerate the Supabase publishable key) before/when the repo goes public, since old values remain visible in git history regardless of the current source.
 - 2026-08-26 — Added `api/` as a new top-level folder: `api/uaserials-search.js` is a Vercel serverless function (auto-deployed from `/api`, no framework change needed — still plain Vite, not Next.js). It's a server-side proxy for DetailModal's "Watch on UASerials" button: uaserials.com sends no CORS headers, so the browser can't fetch+parse its search page itself to find the exact-matching title; this function does that fetch server-to-server instead and returns just the matched item's URL. This is the first non-Supabase backend code in the project — if more server-side proxying is ever needed, put it alongside this file in `api/`, one file per endpoint (Vercel maps each file under `api/` to its own function, no router needed).
 - 2026-08-26 — Added `src/components/AccountMenu/` (gold bookmark-tab control that rises to reveal avatar/name + Settings + Log out on hover/tap) and removed the `.account-bar`/`.account-chip*`/`.account-avatar*`/`.account-name` rules it replaced from `App.css`. It's no longer part of the header — it's positioned via App.jsx's `.list-switcher-wrap` (`position: relative`) flush against the top-right corner of the `ListSwitcher` ("Your lists") card, not the header row. `Settings/` is now opened from `AccountMenu`'s "Settings" item instead of a click on the old chip; `Settings`' own sign-out button is unchanged and still works, so sign-out has two entry points sharing the same `pendingSignOut` + `ConfirmModal` guard.
 - 2026-08-26 — Added `src/components/Settings/` (avatar/name/sign-out modal) + `src/useProfile.js` (its data hook) + `profiles.avatar_url` column (schema.sql). Avatars are stored as client-side-downscaled JPEG data URIs directly in `profiles.avatar_url`, deliberately kept off auth `user_metadata` (unlike `display_name`) since that gets embedded in every JWT.
